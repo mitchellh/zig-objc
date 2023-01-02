@@ -3,11 +3,14 @@ const c = @import("c.zig");
 const objc = @import("main.zig");
 const MsgSend = @import("msg_send.zig").MsgSend;
 
+/// Object is an instance of a class.
 pub const Object = struct {
     value: c.id,
 
     pub usingnamespace MsgSend(Object);
 
+    /// Convert a raw "id" into an Object. id must fit the size of the
+    /// normal C "id" type (i.e. a `usize`).
     pub fn fromId(id: anytype) Object {
         return .{ .value = @ptrCast(c.id, @alignCast(@alignOf(c.id), id)) };
     }

@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const AutoreleasePool = opaque {
+    /// Create a new autorelease pool. To clean it up, call deinit.
     pub inline fn init() *AutoreleasePool {
         return @ptrCast(*AutoreleasePool, objc_autoreleasePoolPush().?);
     }

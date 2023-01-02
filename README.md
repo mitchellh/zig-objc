@@ -3,17 +3,11 @@
 zig-objc allows Zig to call Objective-C using the macOS
 [Objective-C runtime](https://developer.apple.com/documentation/objectivec/objective-c_runtime?language=objc).
 
-**Warning:** This project follows the nightly releases of Zig and may
-not work with released versions of Zig until Zig stabilizes. I also
-am **not promising API stability** right now.
-
-## Features
-
-This library does not currently have 100% coverage over the Objective-C
+**Project Status:** This library does not currently have 100% coverage over the Objective-C
 runtime, but supports enough features to be useful. I use this library in
 shipping code that I run every day.
 
-Features:
+## Features
 
   * Classes:
     - Find classes
@@ -67,6 +61,10 @@ const NSOperatingSystemVersion = extern struct {
 
 ## Usage
 
+**Warning:** This project follows the nightly releases of Zig and may
+not work with released versions of Zig until Zig stabilizes. I also
+am **not promising API stability** right now.
+
 Use your favorite Zig package manager or vendor this repository, then add the package.
 For example in your build.zig:
 
@@ -79,3 +77,9 @@ pub fn build(b: *std.build.Builder) !void {
   exe.addPackage(objc.pkg);
 }
 ```
+
+## Documentation
+
+Read the source code, it is well commented. If something isn't clear, please
+open an issue and I'll enhance the source code. Some familiarity with
+Objective-C concepts is expected for understanding the doc comments.

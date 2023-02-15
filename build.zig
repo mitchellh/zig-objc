@@ -7,13 +7,27 @@ pub const pkg = std.build.Pkg{
     .source = .{ .path = thisDir() ++ "/src/main.zig" },
 };
 
-pub fn build(b: *std.build.Builder) !void {
-    const target = b.standardTargetOptions(.{});
-    const mode = b.standardReleaseOptions();
+/// Returns the module for libxev. The recommended approach is to depend
+/// on libxev in your build.zig.zon file, then use
+/// `b.dependency("libxev").module("xev")`. But if you're not using
+/// a build.zig.zon yet this will work.
+pub fn module(b: *std.Build) *std.Build.Module {
+    return b.createModule(.{
+        .source_file = .{ .path = (comptime thisDir()) ++ "/src/main.zig" },
+    });
+}
 
-    const tests = b.addTestExe("objc-test", "src/main.zig");
-    tests.setBuildMode(mode);
-    tests.setTarget(target);
+pub fn build(b: *std.Build) !void {
+    const optimize = b.standardOptimizeOption(.{});
+    const target = b.standardTargetOptions(.{});
+
+    const tests = b.addTest(.{
+        .name = "objc-test",
+        .kind = .test_exe,
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
     tests.linkSystemLibrary("objc");
     system_sdk.include(b, tests, .{});
     tests.install();

@@ -134,7 +134,7 @@ fn MsgSendFn(
         acc[1] = .{ .type = c.SEL, .is_generic = false, .is_noalias = false };
 
         // Remaining arguments depend on the args given, in the order given
-        for (argsInfo.fields) |field, i| {
+        for (argsInfo.fields, 0..) |field, i| {
             acc[i + 2] = .{
                 .type = field.type,
                 .is_generic = false,

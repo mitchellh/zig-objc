@@ -32,16 +32,22 @@ pub const Object = struct {
     /// this manually if performance is critical.
     pub fn setProperty(self: Object, comptime n: [:0]const u8, v: anytype) void {
         const Class = self.getClass().?;
-        const prop = Class.getProperty(n).?;
-        const setter = if (prop.copyAttributeValue("S")) |val| setter: {
-            defer objc.free(val);
-            break :setter objc.sel(val);
-        } else objc.sel(
-            "set" ++
-                [1]u8{std.ascii.toUpper(n[0])} ++
-                n[1..n.len] ++
-                ":",
-        );
+        const setter = setter: {
+            // See getProperty for why we do this.
+            if (Class.getProperty(n)) |prop| {
+                if (prop.copyAttributeValue("S")) |val| {
+                    defer objc.free(val);
+                    break :setter objc.sel(val);
+                }
+            }
+
+            break :setter objc.sel(
+                "set" ++
+                    [1]u8{std.ascii.toUpper(n[0])} ++
+                    n[1..n.len] ++
+                    ":",
+            );
+        };
 
         self.msgSend(void, setter, .{v});
     }
@@ -51,11 +57,20 @@ pub const Object = struct {
     /// this manually if performance is critical.
     pub fn getProperty(self: Object, comptime T: type, comptime n: [:0]const u8) T {
         const Class = self.getClass().?;
-        const prop = Class.getProperty(n).?;
-        const getter = if (prop.copyAttributeValue("G")) |val| getter: {
-            defer objc.free(val);
-            break :getter objc.sel(val);
-        } else objc.sel(n);
+        const getter = getter: {
+            // Sometimes a property is not a property because it has been
+            // overloaded or something. I've found numerous occasions the
+            // Apple docs are just wrong, so we try to read it as a property
+            // but if we can't then we just call it as-is.
+            if (Class.getProperty(n)) |prop| {
+                if (prop.copyAttributeValue("G")) |val| {
+                    defer objc.free(val);
+                    break :getter objc.sel(val);
+                }
+            }
+
+            break :getter objc.sel(n);
+        };
 
         return self.msgSend(T, getter, .{});
     }

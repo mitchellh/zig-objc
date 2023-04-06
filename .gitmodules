@@ -1,3 +1,3 @@
-[submodule "vendor/mach"]
-	path = vendor/mach
-	url = https://github.com/hexops/mach.git
+[submodule "vendor/mach-glfw"]
+	path = vendor/mach-glfw
+	url = https://github.com/hexops/mach-glfw.git

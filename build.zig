@@ -1,5 +1,5 @@
 const std = @import("std");
-const system_sdk = @import("vendor/mach/libs/glfw/system_sdk.zig");
+const system_sdk = @import("vendor/mach-glfw/system_sdk.zig");
 
 /// Use this with addPackage in your project.
 pub const pkg = std.build.Pkg{

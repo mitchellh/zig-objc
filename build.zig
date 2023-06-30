@@ -23,17 +23,16 @@ pub fn build(b: *std.Build) !void {
 
     const tests = b.addTest(.{
         .name = "objc-test",
-        .kind = .test_exe,
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
     tests.linkSystemLibrary("objc");
     system_sdk.include(b, tests, .{});
-    tests.install();
+    b.installArtifact(tests);
 
     const test_step = b.step("test", "Run tests");
-    const tests_run = tests.run();
+    const tests_run = b.addRunArtifact(tests);
     test_step.dependOn(&tests_run.step);
 }
 

@@ -12,7 +12,7 @@ pub const Object = struct {
     /// Convert a raw "id" into an Object. id must fit the size of the
     /// normal C "id" type (i.e. a `usize`).
     pub fn fromId(id: anytype) Object {
-        return .{ .value = @ptrCast(c.id, @alignCast(@alignOf(c.id), id)) };
+        return .{ .value = @ptrCast(@alignCast(id)) };
     }
 
     /// Returns the class of an object.

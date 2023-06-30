@@ -25,7 +25,7 @@ pub const Class = struct {
     /// Describes the properties declared by a class. This must be freed.
     pub fn copyPropertyList(self: Class) []objc.Property {
         var count: c_uint = undefined;
-        const list = @ptrCast([*c]objc.Property, c.class_copyPropertyList(self.value, &count));
+        const list = @as([*c]objc.Property, @ptrCast(c.class_copyPropertyList(self.value, &count)));
         if (count == 0) return list[0..0];
         return list[0..count];
     }

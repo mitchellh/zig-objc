@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const c = @import("c.zig");
 const objc = @import("main.zig");
 const MsgSend = @import("msg_send.zig").MsgSend;
@@ -23,41 +24,12 @@ pub const Class = struct {
 
         // add ivars
         inline for (ivars) |ivar| {
-            const ivar_name = ivar.name;
-            const ivar_type = ivar.ivar_type;
-
-            var buf: [50]u8 = undefined;
-            const ivar_encoding = try std.fmt.bufPrint(&buf, "{s}", .{objc.Encoding.newFromType(ivar_type)});
-            const success = c.class_addIvar(
-                new_class,
-                ivar_name.ptr,
-                @sizeOf(ivar_type),
-                @alignOf(ivar_type),
-                ivar_encoding.ptr
-            ) != 0;
-            if (!success) {
-                return ClassError.AddIvarToClassFailure;
-            }
+            try addIvar(new_class, ivar.name, ivar.ivar_type);
         }
 
         // add methods
         inline for (methods) |method| {
-            const method_name = method.name;
-            const method_fn = method.function;
-
-            var buf: [50]u8 = undefined;
-            const method_encoding = try std.fmt.bufPrint(&buf, "{s}", .{objc.Encoding.newFromType(@TypeOf(method_fn))});
-            const method_sel = objc.sel(method_name);
-            const success = c.class_addMethod(
-                new_class,
-                method_sel.value,
-                @as(*const fn() callconv(.C) void, @ptrCast(&method_fn)),
-                method_encoding.ptr
-            ) != 0;
-
-            if (!success) {
-                return ClassError.AddMethodToClassFailure;
-            }
+            try addInstanceMethod(new_class, method.name, @TypeOf(method.function), method.function);
         }
 
         // registers a class pair. Must happen for the class to be recognized by the runtime
@@ -88,6 +60,51 @@ pub const Class = struct {
         const list = @as([*c]objc.Property, @ptrCast(c.class_copyPropertyList(self.value, &count)));
         if (count == 0) return list[0..0];
         return list[0..count];
+    }
+
+    // Adds an instance variable to a class. This must be called after objc_allocateClassPair and before objc_RegisterClassPair
+    fn addIvar(class: c.Class, name: [:0]const u8, comptime IvarType: type) !void {
+        var buf: [100]u8 = undefined;
+        const ivar_encoding = try std.fmt.bufPrint(&buf, "{s}", .{objc.Encoding.newFromType(IvarType)});
+
+        const result = c.class_addIvar(
+            class,
+            name,
+            @sizeOf(IvarType),
+            @alignOf(IvarType),
+            ivar_encoding.ptr
+        );
+        
+        // aarch64 turns the BOOL type into an actual zig 'bool', while x86_64 keeps it at an i8
+        const success = switch (builtin.target.cpu.arch) {
+            .aarch64 => result,
+            .x86_64 => result != 0,
+            else => @compileError("unsupported objc architecture")
+        };
+        
+        if (!success) return ClassError.AddIvarToClassFailure;
+    }
+
+    // Adds an instance method to a class. This must be called after objc_allocateClassPair and before objc_RegisterClassPair
+    fn addInstanceMethod(class: c.Class, name: [:0]const u8, comptime FnType: type, func_impl: FnType) anyerror!void {
+        var buf: [100]u8 = undefined;
+        const method_encoding = try std.fmt.bufPrint(&buf, "{s}", .{objc.Encoding.newFromType(FnType)});
+        const method_sel = objc.sel(name);
+        const result = c.class_addMethod(
+            class,
+            method_sel.value,
+            @as(*const fn() callconv(.C) void, @ptrCast(&func_impl)),
+            method_encoding.ptr
+        );
+
+        // aarch64 turns the BOOL type into an actual zig 'bool', while x86_64 keeps it at an i8
+        const success = switch (builtin.target.cpu.arch) {
+            .aarch64 => result,
+            .x86_64 => result != 0,
+            else => @compileError("unsupported objc architecture")
+        };
+
+        if (!success) return ClassError.AddMethodToClassFailure;
     }
 
     fn register(self: Class) void {

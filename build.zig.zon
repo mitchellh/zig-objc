@@ -1,0 +1,10 @@
+.{
+    .name = "zig-objc",
+    .version = "0.0.0",
+    .dependencies = .{
+        .xcode_frameworks = .{
+            .url = "https://github.com/mitchellh/zig-build-xcode-frameworks/archive/8a5fac6c4e7110be073b93cdbb317264731b2e14.tar.gz",
+            .hash = "122057e2244209296c552203b246870f6bc0326f9bd8eb41bc1e9e1de5c2a62c5be3",
+        },
+    },
+}

@@ -1,3 +1,0 @@
-[submodule "vendor/mach-glfw"]
-	path = vendor/mach-glfw
-	url = https://github.com/hexops/mach-glfw.git

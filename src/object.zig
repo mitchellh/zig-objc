@@ -74,11 +74,33 @@ pub const Object = struct {
 
         return self.msgSend(T, getter, .{});
     }
+
+    pub fn copy(self: Object, size: usize) Object {
+        return fromId(c.object_copy(self.value, size));
+    }
+
+    pub fn dispose(self: Object) void {
+        c.object_dispose(self.value);
+    }
+
+    pub fn isClass(self: Object) bool {
+        return if (c.object_isClass(self.value) == 1) true else false;
+    }
+
+    pub fn getInstanceVariable(self: Object, name: [:0]const u8) Object {
+        const ivar = c.object_getInstanceVariable(self.value, name, null);
+        return fromId(c.object_getIvar(self.value, ivar));
+    }
+
+    pub fn setInstanceVariable(self: Object, name: [:0]const u8, val: Object) void {
+        const ivar = c.object_getInstanceVariable(self.value, name, null);
+        c.object_setIvar(self.value, ivar, val.value);
+    }
 };
 
 test {
     const testing = std.testing;
-    const NSObject = objc.Class.getClass("NSObject").?;
+    const NSObject = objc.getClass("NSObject").?;
 
     // Should work with our wrappers
     const obj = NSObject.msgSend(objc.Object, objc.Sel.registerName("alloc"), .{});

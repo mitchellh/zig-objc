@@ -12,6 +12,23 @@ pub fn MsgSend(comptime T: type) type {
     // 2. T should have a field "value" that can be an "id" (same size)
 
     return struct {
+        pub fn message_super(
+            target: T,
+            superclass: objc.Class,
+            comptime Return: type,
+            msg: [:0]const u8,
+            args: anytype,
+        ) Return {
+            return @This().msgSendSuper(target, superclass, Return, objc.sel(msg), args);
+        }
+        pub fn message(
+            target: T,
+            comptime Return: type,
+            msg: [:0]const u8,
+            args: anytype,
+        ) Return {
+            return @This().msgSend(target, Return, objc.sel(msg), args);
+        }
         /// Invoke a selector on the target, i.e. an instance method on an
         /// object or a class method on a class. The args should be a tuple.
         pub fn msgSend(
@@ -81,6 +98,67 @@ pub fn MsgSend(comptime T: type) type {
             // [1]: https://github.com/ziglang/zig/issues/13598
             var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
             const result = @call(.auto, msg_send_ptr, .{ target.value, sel.value } ++ args);
+
+            if (!is_object) return result;
+            return .{ .value = result };
+        }
+
+        pub fn msgSendSuper(
+            target: T,
+            superclass: objc.Class,
+            comptime Return: type,
+            sel: objc.Sel,
+            args: anytype,
+        ) Return {
+            const is_object = Return == objc.Object;
+            const RealReturn = if (is_object) c.id else Return;
+
+            const msg_send_fn = switch (builtin.target.cpu.arch) {
+                // Aarch64 uses objc_msgSend for everything. Hurray!
+                .aarch64 => &c.objc_msgSendSuper,
+
+                // x86_64 depends on the return type...
+                .x86_64 => switch (@typeInfo(RealReturn)) {
+                    // Most types use objc_msgSend
+                    inline .Int, .Bool, .Pointer, .Void => &c.objc_msgSend,
+                    .Optional => |opt| opt: {
+                        assert(@typeInfo(opt.child) == .Pointer);
+                        break :opt &c.objc_msgSendSuper;
+                    },
+                    .Struct => if (@sizeOf(Return) > 16)
+                        &c.objc_msgSendSuper_stret
+                    else
+                        &c.objc_msgSendSuper,
+
+                    // Floats use objc_msgSend_fpret for f64 on x86_64,
+                    // but normal msgSend for other bit sizes. i386 has
+                    // more complex rules but we don't support i386 at the time
+                    // of this comment and probably never will since all i386
+                    // Apple models are discontinued at this point.
+                    .Float => |float| switch (float.bits) {
+                        64 => &c.objc_msgSendSuper_fpret,
+                        else => &c.objc_msgSendSuper,
+                    },
+
+                    // Otherwise we log in case we need to add a new case above
+                    else => {
+                        @compileLog(@typeInfo(RealReturn));
+                        @compileError("unsupported return type for objc runtime on x86_64");
+                    },
+                },
+                else => @compileError("unsupported objc architecture"),
+            };
+
+            // Build our function type and call it
+            const Fn = MsgSendSuperFn(RealReturn, @TypeOf(args));
+            // Due to this stage2 Zig issue[1], this must be var for now.
+            // [1]: https://github.com/ziglang/zig/issues/13598
+            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
+            var super: c.objc_super = .{
+                .receiver = target.value,
+                .super_class = superclass.value,
+            };
+            const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ args);
 
             if (!is_object) return result;
             return .{ .value = result };
@@ -161,6 +239,50 @@ fn MsgSendFn(
     });
 }
 
+fn MsgSendSuperFn(
+    comptime Return: type,
+    comptime Args: type,
+) type {
+    const argsInfo = @typeInfo(Args).Struct;
+    assert(argsInfo.is_tuple);
+
+    // Build up our argument types.
+    const Fn = std.builtin.Type.Fn;
+    const params: []Fn.Param = params: {
+        var acc: [argsInfo.fields.len + 2]Fn.Param = undefined;
+
+        // First argument is always the target and selector.
+        acc[0] = .{ .type = [*c]c.objc_super, .is_generic = false, .is_noalias = false };
+        acc[1] = .{ .type = c.SEL, .is_generic = false, .is_noalias = false };
+
+        // Remaining arguments depend on the args given, in the order given
+        for (argsInfo.fields, 0..) |field, i| {
+            acc[i + 2] = .{
+                .type = field.type,
+                .is_generic = false,
+                .is_noalias = false,
+            };
+        }
+
+        break :params &acc;
+    };
+
+    // Copy the alignment of a normal function type so equality works
+    // (mainly for tests, I don't think this has any consequence otherwise)
+    const alignment = @typeInfo(fn () callconv(.C) void).Fn.alignment;
+
+    return @Type(.{
+        .Fn = .{
+            .calling_convention = .C,
+            .alignment = alignment,
+            .is_generic = false,
+            .is_var_args = false,
+            .return_type = Return,
+            .params = params,
+        },
+    });
+}
+
 test {
     // https://github.com/ziglang/zig/issues/12360
     if (true) return error.SkipZigTest;
@@ -174,4 +296,22 @@ test {
         @as(u16, 0),
         @as(u32, 0),
     })));
+}
+
+test "subClass" {
+    const Subclass = objc.allocateClassPair(objc.getClass("NSObject").?, "subclass").?;
+    defer objc.disposeClassPair(Subclass);
+    const str = struct {
+        fn inner(target: objc.c.id, sel: objc.c.SEL) callconv(.C) objc.c.id {
+            _ = sel;
+            const self = objc.Object.fromId(target);
+            self.message_super(objc.getClass("NSObject").?, void, "init", .{});
+            return target;
+        }
+    };
+    Subclass.replaceMethod("init", str.inner);
+    objc.registerClassPair(Subclass);
+    const subclass_obj = Subclass.message(objc.Object, "alloc", .{});
+    defer subclass_obj.message(void, "dealloc", .{});
+    subclass_obj.message(void, "init", .{});
 }

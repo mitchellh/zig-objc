@@ -1,5 +1,4 @@
 const std = @import("std");
-const xcode_frameworks = @import("xcode_frameworks");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
@@ -14,7 +13,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     tests.linkSystemLibrary("objc");
-    try xcode_frameworks.addPaths(b, tests);
+    @import("macos_sdk").addPaths(tests);
     b.installArtifact(tests);
 
     const test_step = b.step("test", "Run tests");

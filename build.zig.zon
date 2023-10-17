@@ -1,10 +1,17 @@
 .{
     .name = "zig-objc",
     .version = "0.0.0",
+    .paths = .{
+        "src/",
+        "build.zig",
+        "build.zig.zon",
+        "README.md",
+        "LICENSE",
+    },
     .dependencies = .{
-        .xcode_frameworks = .{
-            .url = "https://github.com/mitchellh/zig-build-xcode-frameworks/archive/8a5fac6c4e7110be073b93cdbb317264731b2e14.tar.gz",
-            .hash = "122057e2244209296c552203b246870f6bc0326f9bd8eb41bc1e9e1de5c2a62c5be3",
+        .macos_sdk = .{
+            .url = "https://github.com/mitchellh/zig-build-macos-sdk/archive/166ff65bb7688c0a08c4ea98166ec8300aa34128.tar.gz",
+            .hash = "1220bfe1b32491a3448dff55c1dc0c12aa573f1e5bdb0a962bfbadaaa59e4833798b",
         },
     },
 }

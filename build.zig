@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     tests.linkSystemLibrary("objc");
+    tests.linkFramework("Foundation");
     @import("macos_sdk").addPaths(tests);
     b.installArtifact(tests);
 

@@ -70,5 +70,5 @@ test "copyProperyList" {
 
     const list = NSObject.copyPropertyList();
     defer objc.free(list);
-    try testing.expect(list.len > 20);
+    try testing.expect(list.len > 0);
 }

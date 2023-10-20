@@ -25,3 +25,11 @@ test {
     try testing.expect(@sizeOf(Property) == @sizeOf(c.objc_property_t));
     try testing.expect(@alignOf(Property) == @alignOf(c.objc_property_t));
 }
+
+test {
+    const testing = std.testing;
+    const NSObject = objc.Class.getClass("NSObject").?;
+
+    const prop = NSObject.getProperty("className").?;
+    try testing.expectEqualStrings("className", prop.getName());
+}

@@ -55,3 +55,20 @@ test "msgSend" {
     try testing.expect(obj.value != null);
     obj.msgSend(void, objc.sel("dealloc"), .{});
 }
+
+test "getProperty" {
+    const testing = std.testing;
+    const NSObject = Class.getClass("NSObject").?;
+
+    try testing.expect(NSObject.getProperty("className") != null);
+    try testing.expect(NSObject.getProperty("nope") == null);
+}
+
+test "copyProperyList" {
+    const testing = std.testing;
+    const NSObject = Class.getClass("NSObject").?;
+
+    const list = NSObject.copyPropertyList();
+    defer objc.free(list);
+    try testing.expect(list.len > 20);
+}

@@ -15,7 +15,6 @@ pub fn build(b: *std.Build) void {
     tests.linkSystemLibrary("objc");
     tests.linkFramework("Foundation");
     @import("macos_sdk").addPaths(tests);
-
     b.installArtifact(tests);
 
     const test_step = b.step("test", "Run tests");

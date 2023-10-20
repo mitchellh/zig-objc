@@ -21,6 +21,7 @@ pub fn MsgSend(comptime T: type) type {
         ) Return {
             return @This().msgSendSuper(target, superclass, Return, objc.sel(msg), args);
         }
+
         pub fn message(
             target: T,
             comptime Return: type,
@@ -29,6 +30,7 @@ pub fn MsgSend(comptime T: type) type {
         ) Return {
             return @This().msgSend(target, Return, objc.sel(msg), args);
         }
+
         /// Invoke a selector on the target, i.e. an instance method on an
         /// object or a class method on a class. The args should be a tuple.
         pub fn msgSend(

@@ -1,5 +1,4 @@
 .{
-    .paths = .{"src"},
     .name = "zig-objc",
     .version = "0.0.0",
     .paths = .{

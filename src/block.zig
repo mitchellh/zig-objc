@@ -1,10 +1,7 @@
 const std = @import("std");
 const objc = @import("main.zig");
 
-const NSConcreteStackBlock = @extern(*anyopaque, .{
-    .name = "_NSConcreteStackBlock",
-});
-
+const NSConcreteStackBlock = @extern(*anyopaque, .{ .name = "_NSConcreteStackBlock" });
 extern "C" fn _Block_object_assign(dst: *anyopaque, src: *const anyopaque, flag: c_int) void;
 extern "C" fn _Block_object_dispose(src: *const anyopaque, flag: c_int) void;
 

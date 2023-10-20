@@ -84,7 +84,7 @@ pub const Object = struct {
     }
 
     pub fn isClass(self: Object) bool {
-        return if (c.object_isClass(self.value) == 1) true else false;
+        return c.object_isClass(self.value) == 1;
     }
 
     pub fn getInstanceVariable(self: Object, name: [:0]const u8) Object {

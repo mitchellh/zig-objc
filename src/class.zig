@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const c = @import("c.zig");
 const objc = @import("main.zig");
 const MsgSend = @import("msg_send.zig").MsgSend;
@@ -31,7 +32,7 @@ pub const Class = struct {
     }
 
     pub fn isMetaClass(self: Class) bool {
-        return if (c.class_isMetaClass(self.value) == 1) true else false;
+        return c.class_isMetaClass(self.value) == 1;
     }
 
     pub fn getInstanceSize(self: Class) usize {
@@ -39,28 +40,23 @@ pub const Class = struct {
     }
 
     pub fn respondsToSelector(self: Class, sel: objc.Sel) bool {
-        return if (c.class_respondsToSelector(self.value, sel.value) == 1) true else false;
+        return c.class_respondsToSelector(self.value, sel.value) == 1;
     }
 
     pub fn conformsToProtocol(self: Class, protocol: objc.Protocol) bool {
-        return if (c.class_conformsToProtocol(self.value, &protocol.value) == 1) true else false;
+        return c.class_conformsToProtocol(self.value, &protocol.value) == 1;
     }
 
     // currently only allows for overriding methods previously defined, e.g. by a superclass.
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn replaceMethod(self: Class, name: [:0]const u8, imp: anytype) void {
-        const type_info = @typeInfo(@TypeOf(imp));
-        switch (type_info) {
-            .Fn => |fn_info| {
-                std.debug.assert(fn_info.calling_convention == .C);
-                std.debug.assert(fn_info.is_var_args == false);
-                std.debug.assert(fn_info.params.len >= 2);
-                std.debug.assert(fn_info.params[0].type == c.id);
-                std.debug.assert(fn_info.params[1].type == c.SEL);
-            },
-            else => unreachable,
-        }
+        const fn_info = @typeInfo(@TypeOf(imp)).Fn;
+        assert(fn_info.calling_convention == .C);
+        assert(fn_info.is_var_args == false);
+        assert(fn_info.params.len >= 2);
+        assert(fn_info.params[0].type == c.id);
+        assert(fn_info.params[1].type == c.SEL);
         _ = c.class_replaceMethod(self.value, objc.sel(name).value, @ptrCast(&imp), null);
     }
 
@@ -69,11 +65,11 @@ pub const Class = struct {
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) bool {
         const fn_info = @typeInfo(@TypeOf(imp)).Fn;
-        std.debug.assert(fn_info.calling_convention == .C);
-        std.debug.assert(fn_info.is_var_args == false);
-        std.debug.assert(fn_info.params.len >= 2);
-        std.debug.assert(fn_info.params[0].type == c.id);
-        std.debug.assert(fn_info.params[1].type == c.SEL);
+        assert(fn_info.calling_convention == .C);
+        assert(fn_info.is_var_args == false);
+        assert(fn_info.params.len >= 2);
+        assert(fn_info.params[0].type == c.id);
+        assert(fn_info.params[1].type == c.SEL);
         const str = objc.encodeFn(fn_info.return_type.?, fn_info.params) catch @panic("OOM!");
         defer std.heap.raw_c_allocator.free(str);
         return c.class_addMethod(self.value, objc.sel(name).value, @ptrCast(&imp), str.ptr);
@@ -87,22 +83,20 @@ pub const Class = struct {
 };
 
 pub fn getClass(name: [:0]const u8) ?Class {
-    return .{
-        .value = c.objc_getClass(name.ptr) orelse return null,
-    };
+    return .{ .value = c.objc_getClass(name.ptr) orelse return null };
 }
 
 pub fn getMetaClass(name: [:0]const u8) ?Class {
-    return .{
-        .value = c.objc_getMetaClass(name) orelse return null,
-    };
+    return .{ .value = c.objc_getMetaClass(name) orelse return null };
 }
 
 // begin by calling this function, then call registerClassPair on the result when you are finished
 pub fn allocateClassPair(superclass: ?Class, name: [:0]const u8) ?Class {
-    return .{
-        .value = c.objc_allocateClassPair(if (superclass) |cls| cls.value else null, name.ptr, 0) orelse return null,
-    };
+    return .{ .value = c.objc_allocateClassPair(
+        if (superclass) |cls| cls.value else null,
+        name.ptr,
+        0,
+    ) orelse return null };
 }
 
 pub fn registerClassPair(class: Class) void {

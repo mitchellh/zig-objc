@@ -78,7 +78,14 @@ pub const Class = struct {
     // only call this function between allocateClassPair and registerClassPair
     // this adds an Ivar of type `id`.
     pub fn addIvar(self: Class, name: [:0]const u8) bool {
-        return c.class_addIvar(self.value, name, @sizeOf(c.id), @alignOf(c.id), "@");
+        // The return type is i8 when we're cross compiling, unsure why.
+        const fn_info = @typeInfo(@TypeOf(c.class_addIvar)).Fn;
+        const result = c.class_addIvar(self.value, name, @sizeOf(c.id), @alignOf(c.id), "@");
+        return switch (fn_info.return_type.?) {
+            bool => result,
+            i8 => result == 1,
+            else => @compileError("unhandled class_addIvar return type"),
+        };
     }
 };
 

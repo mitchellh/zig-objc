@@ -74,9 +74,9 @@ pub const Class = struct {
         std.debug.assert(fn_info.params.len >= 2);
         std.debug.assert(fn_info.params[0].type == c.id);
         std.debug.assert(fn_info.params[1].type == c.SEL);
-        const str = objc.encodeFn(fn_info.return_type.?, fn_info.params);
+        const str = objc.encodeFn(fn_info.return_type.?, fn_info.params) catch @panic("OOM!");
         defer std.heap.raw_c_allocator.free(str);
-        return c.class_addMethod(self.value, objc.sel(name).value, @ptrCast(&imp), str);
+        return c.class_addMethod(self.value, objc.sel(name).value, @ptrCast(&imp), str.ptr);
     }
 
     // only call this function between allocateClassPair and registerClassPair

@@ -111,7 +111,6 @@ pub fn Block(
                     _Block_object_dispose(@field(real_src, field.name), 3);
                 }
             }
-            alloc.free(std.mem.sliceTo(real_src.descriptor.signature.?, 0));
             alloc.destroy(real_src.descriptor);
         }
 

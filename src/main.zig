@@ -5,7 +5,9 @@ pub usingnamespace @import("autorelease.zig");
 pub usingnamespace @import("class.zig");
 pub usingnamespace @import("object.zig");
 pub usingnamespace @import("property.zig");
+pub usingnamespace @import("protocol.zig");
 pub usingnamespace @import("sel.zig");
+pub usingnamespace @import("block.zig");
 
 /// This just calls the C allocator free. Some things need to be freed
 /// and this is how they can be freed for objc.

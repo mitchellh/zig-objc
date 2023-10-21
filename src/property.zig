@@ -17,6 +17,11 @@ pub const Property = extern struct {
             0,
         );
     }
+
+    comptime {
+        std.debug.assert(@sizeOf(@This()) == @sizeOf(c.objc_property_t));
+        std.debug.assert(@alignOf(@This()) == @alignOf(c.objc_property_t));
+    }
 };
 
 test {
@@ -28,7 +33,7 @@ test {
 
 test {
     const testing = std.testing;
-    const NSObject = objc.Class.getClass("NSObject").?;
+    const NSObject = objc.getClass("NSObject").?;
 
     const prop = NSObject.getProperty("className").?;
     try testing.expectEqualStrings("className", prop.getName());

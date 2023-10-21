@@ -152,7 +152,7 @@ pub fn MsgSend(comptime T: type) type {
             };
 
             // Build our function type and call it
-            const Fn = MsgSendSuperFn(RealReturn, @TypeOf(args));
+            const Fn = MsgSendFn(RealReturn, *c.objc_super, @TypeOf(args));
             // Due to this stage2 Zig issue[1], this must be var for now.
             // [1]: https://github.com/ziglang/zig/issues/13598
             var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
@@ -211,50 +211,6 @@ fn MsgSendFn(
 
         // First argument is always the target and selector.
         acc[0] = .{ .type = Target, .is_generic = false, .is_noalias = false };
-        acc[1] = .{ .type = c.SEL, .is_generic = false, .is_noalias = false };
-
-        // Remaining arguments depend on the args given, in the order given
-        for (argsInfo.fields, 0..) |field, i| {
-            acc[i + 2] = .{
-                .type = field.type,
-                .is_generic = false,
-                .is_noalias = false,
-            };
-        }
-
-        break :params &acc;
-    };
-
-    // Copy the alignment of a normal function type so equality works
-    // (mainly for tests, I don't think this has any consequence otherwise)
-    const alignment = @typeInfo(fn () callconv(.C) void).Fn.alignment;
-
-    return @Type(.{
-        .Fn = .{
-            .calling_convention = .C,
-            .alignment = alignment,
-            .is_generic = false,
-            .is_var_args = false,
-            .return_type = Return,
-            .params = params,
-        },
-    });
-}
-
-fn MsgSendSuperFn(
-    comptime Return: type,
-    comptime Args: type,
-) type {
-    const argsInfo = @typeInfo(Args).Struct;
-    assert(argsInfo.is_tuple);
-
-    // Build up our argument types.
-    const Fn = std.builtin.Type.Fn;
-    const params: []Fn.Param = params: {
-        var acc: [argsInfo.fields.len + 2]Fn.Param = undefined;
-
-        // First argument is always the target and selector.
-        acc[0] = .{ .type = [*c]c.objc_super, .is_generic = false, .is_noalias = false };
         acc[1] = .{ .type = c.SEL, .is_generic = false, .is_noalias = false };
 
         // Remaining arguments depend on the args given, in the order given

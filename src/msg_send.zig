@@ -12,25 +12,6 @@ pub fn MsgSend(comptime T: type) type {
     // 2. T should have a field "value" that can be an "id" (same size)
 
     return struct {
-        pub fn message_super(
-            target: T,
-            superclass: objc.Class,
-            comptime Return: type,
-            msg: [:0]const u8,
-            args: anytype,
-        ) Return {
-            return @This().msgSendSuper(target, superclass, Return, objc.sel(msg), args);
-        }
-
-        pub fn message(
-            target: T,
-            comptime Return: type,
-            msg: [:0]const u8,
-            args: anytype,
-        ) Return {
-            return @This().msgSend(target, Return, objc.sel(msg), args);
-        }
-
         /// Invoke a selector on the target, i.e. an instance method on an
         /// object or a class method on a class. The args should be a tuple.
         pub fn msgSend(
@@ -51,8 +32,7 @@ pub fn MsgSend(comptime T: type) type {
             // an objc.sel ultimately.
             const sel: objc.Sel = switch (@TypeOf(sel_raw)) {
                 objc.Sel => sel_raw,
-                [:0]const u8 => objc.sel(sel_raw),
-                else => @compileError("invalid selector type"),
+                else => objc.sel(sel_raw),
             };
 
             // Build our function type and call it
@@ -62,6 +42,36 @@ pub fn MsgSend(comptime T: type) type {
             // [1]: https://github.com/ziglang/zig/issues/13598
             var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
             const result = @call(.auto, msg_send_ptr, .{ target.value, sel.value } ++ args);
+
+            if (!is_object) return result;
+            return .{ .value = result };
+        }
+
+        /// Invoke a selector on the superclass.
+        pub fn msgSendSuper(
+            target: T,
+            superclass: objc.Class,
+            comptime Return: type,
+            sel_raw: anytype,
+            args: anytype,
+        ) Return {
+            // See msgSend for in depth comments on all of this. This is
+            // effectively the same logic.
+            const is_object = Return == objc.Object;
+            const RealReturn = if (is_object) c.id else Return;
+            const sel: objc.Sel = switch (@TypeOf(sel_raw)) {
+                objc.Sel => sel_raw,
+                else => objc.sel(sel_raw),
+            };
+
+            const Fn = MsgSendFn(RealReturn, *c.objc_super, @TypeOf(args));
+            const msg_send_fn = comptime msgSendPtr(RealReturn, true);
+            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
+            var super: c.objc_super = .{
+                .receiver = target.value,
+                .super_class = superclass.value,
+            };
+            const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ args);
 
             if (!is_object) return result;
             return .{ .value = result };
@@ -134,32 +144,6 @@ pub fn MsgSend(comptime T: type) type {
 
                 else => @compileError("unsupported objc architecture"),
             };
-        }
-
-        pub fn msgSendSuper(
-            target: T,
-            superclass: objc.Class,
-            comptime Return: type,
-            sel: objc.Sel,
-            args: anytype,
-        ) Return {
-            const is_object = Return == objc.Object;
-            const RealReturn = if (is_object) c.id else Return;
-
-            // Build our function type and call it
-            const Fn = MsgSendFn(RealReturn, *c.objc_super, @TypeOf(args));
-            const msg_send_fn = comptime msgSendPtr(RealReturn, true);
-            // Due to this stage2 Zig issue[1], this must be var for now.
-            // [1]: https://github.com/ziglang/zig/issues/13598
-            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
-            var super: c.objc_super = .{
-                .receiver = target.value,
-                .super_class = superclass.value,
-            };
-            const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ args);
-
-            if (!is_object) return result;
-            return .{ .value = result };
         }
     };
 }
@@ -259,13 +243,13 @@ test "subClass" {
         fn inner(target: objc.c.id, sel: objc.c.SEL) callconv(.C) objc.c.id {
             _ = sel;
             const self = objc.Object.fromId(target);
-            self.message_super(objc.getClass("NSObject").?, void, "init", .{});
+            self.msgSendSuper(objc.getClass("NSObject").?, void, "init", .{});
             return target;
         }
     };
     Subclass.replaceMethod("init", str.inner);
     objc.registerClassPair(Subclass);
-    const subclass_obj = Subclass.message(objc.Object, "alloc", .{});
-    defer subclass_obj.message(void, "dealloc", .{});
-    subclass_obj.message(void, "init", .{});
+    const subclass_obj = Subclass.msgSend(objc.Object, "alloc", .{});
+    defer subclass_obj.msgSend(void, "dealloc", .{});
+    subclass_obj.msgSend(void, "init", .{});
 }

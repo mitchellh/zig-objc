@@ -126,17 +126,17 @@ test "msgSend" {
     const NSObject = getClass("NSObject").?;
 
     // Should work with primitives
-    const id = NSObject.message(c.id, "alloc", .{});
+    const id = NSObject.msgSend(c.id, "alloc", .{});
     try testing.expect(id != null);
     {
         const obj: objc.Object = .{ .value = id };
-        obj.message(void, "dealloc", .{});
+        obj.msgSend(void, "dealloc", .{});
     }
 
     // Should work with our wrappers
-    const obj = NSObject.message(objc.Object, "alloc", .{});
+    const obj = NSObject.msgSend(objc.Object, "alloc", .{});
     try testing.expect(obj.value != null);
-    obj.message(void, "dealloc", .{});
+    obj.msgSend(void, "dealloc", .{});
 }
 
 test "getProperty" {
@@ -170,10 +170,10 @@ test "allocatecClassPair and replaceMethod" {
     registerClassPair(my_object);
     defer disposeClassPair(my_object);
     const object: objc.Object = .{
-        .value = my_object.message(c.id, "alloc", .{}),
+        .value = my_object.msgSend(c.id, "alloc", .{}),
     };
-    defer object.message(void, "dealloc", .{});
-    try testing.expectEqual(@as(u64, 69), object.message(u64, "hash", .{}));
+    defer object.msgSend(void, "dealloc", .{});
+    try testing.expectEqual(@as(u64, 69), object.msgSend(u64, "hash", .{}));
 }
 
 test "Ivars" {
@@ -184,12 +184,12 @@ test "Ivars" {
     registerClassPair(my_object);
     defer disposeClassPair(my_object);
     const object: objc.Object = .{
-        .value = my_object.message(c.id, "alloc", .{}),
+        .value = my_object.msgSend(c.id, "alloc", .{}),
     };
-    defer object.message(void, "dealloc", .{});
+    defer object.msgSend(void, "dealloc", .{});
     const NSString = getClass("NSString").?;
-    const my_string = NSString.message(objc.Object, "stringWithUTF8String:", .{"69---nice"});
-    defer my_string.message(void, "dealloc", .{});
+    const my_string = NSString.msgSend(objc.Object, "stringWithUTF8String:", .{"69---nice"});
+    defer my_string.msgSend(void, "dealloc", .{});
     object.setInstanceVariable("my_ivar", my_string);
     const my_ivar = object.getInstanceVariable("my_ivar");
     const slice = std.mem.sliceTo(my_ivar.getProperty([*c]const u8, "UTF8String"), 0);

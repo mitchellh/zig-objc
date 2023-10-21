@@ -51,14 +51,14 @@ const objc = @import("objc");
 
 pub fn macosVersionAtLeast(major: i64, minor: i64, patch: i64) bool {
     /// Get the objc class from the runtime
-    const NSProcessInfo = objc.Class.getClass("NSProcessInfo").?;
+    const NSProcessInfo = objc.getClass("NSProcessInfo").?;
 
     /// Call a class method with no arguments that returns another objc object.
-    const info = NSProcessInfo.msgSend(objc.Object, objc.sel("processInfo"), .{});
+    const info = NSProcessInfo.msgSend(objc.Object, "processInfo", .{});
 
     /// Call an instance method that returns a boolean and takes a single
     /// argument.
-    return info.msgSend(bool, objc.sel("isOperatingSystemAtLeastVersion:"), .{
+    return info.msgSend(bool, "isOperatingSystemAtLeastVersion:", .{
         NSOperatingSystemVersion{ .major = major, .minor = minor, .patch = patch },
     });
 }

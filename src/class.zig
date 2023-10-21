@@ -60,12 +60,10 @@ pub const Class = struct {
         _ = c.class_replaceMethod(self.value, objc.sel(name).value, @ptrCast(&imp), null);
     }
 
-    pub const AddMethodError = error{AddMethodFailed} || std.mem.Allocator.Error;
-
     /// allows adding new methods; returns true on success.
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
-    pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) AddMethodError!void {
+    pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) !bool {
         const fn_info = @typeInfo(@TypeOf(imp)).Fn;
         assert(fn_info.calling_convention == .C);
         assert(fn_info.is_var_args == false);
@@ -74,9 +72,7 @@ pub const Class = struct {
         assert(fn_info.params[1].type == c.SEL);
         const str = try objc.createFnSignature(fn_info.return_type.?, fn_info.params);
         defer std.heap.raw_c_allocator.free(str);
-        if (!c.class_addMethod(self.value, objc.sel(name).value, @ptrCast(&imp), str.ptr)) {
-            return error.AddMethodFailed;
-        }
+        return c.class_addMethod(self.value, objc.sel(name).value, @ptrCast(&imp), str.ptr);
     }
 
     // only call this function between allocateClassPair and registerClassPair
@@ -205,13 +201,13 @@ test "addMethod" {
     const My_Class = setup: {
         const My_Class = allocateClassPair(objc.getClass("NSObject").?, "my_class").?;
         defer registerClassPair(My_Class);
-        try My_Class.addMethod("my_addition", struct {
+        std.debug.assert(try My_Class.addMethod("my_addition", struct {
             fn imp(target: objc.c.id, sel: objc.c.SEL, a: i32, b: i32) callconv(.C) i32 {
                 _ = sel;
                 _ = target;
                 return a + b;
             }
-        }.imp);
+        }.imp));
         break :setup My_Class;
     };
     const result = My_Class.msgSend(objc.Object, "alloc", .{})

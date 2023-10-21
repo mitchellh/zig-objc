@@ -36,7 +36,7 @@ pub fn MsgSend(comptime T: type) type {
         pub fn msgSend(
             target: T,
             comptime Return: type,
-            sel: objc.Sel,
+            sel_raw: anytype,
             args: anytype,
         ) Return {
             // Our one special-case: If the return type is our own Object
@@ -47,20 +47,51 @@ pub fn MsgSend(comptime T: type) type {
             // our built-in types (see above). Otherwise, we trust the caller.
             const RealReturn = if (is_object) c.id else Return;
 
+            // We accept multiple types for sel but we need to turn it into
+            // an objc.sel ultimately.
+            const sel: objc.Sel = switch (@TypeOf(sel_raw)) {
+                objc.Sel => sel_raw,
+                [:0]const u8 => objc.sel(sel_raw),
+                else => @compileError("invalid selector type"),
+            };
+
+            // Build our function type and call it
+            const Fn = MsgSendFn(RealReturn, @TypeOf(target.value), @TypeOf(args));
+            const msg_send_fn = comptime msgSendPtr(RealReturn, false);
+            // Due to this stage2 Zig issue[1], this must be var for now.
+            // [1]: https://github.com/ziglang/zig/issues/13598
+            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
+            const result = @call(.auto, msg_send_ptr, .{ target.value, sel.value } ++ args);
+
+            if (!is_object) return result;
+            return .{ .value = result };
+        }
+
+        /// Returns the objc_msgSend or objc_msgSendSuper pointer for the
+        /// given return type.
+        fn msgSendPtr(
+            comptime Return: type,
+            comptime super: bool,
+        ) *const fn () callconv(.C) void {
             // See objc/message.h. The high-level is that depending on the
             // target architecture and return type, we must use a different
             // objc_msgSend function.
-            const msg_send_fn = switch (builtin.target.cpu.arch) {
+            return switch (builtin.target.cpu.arch) {
                 // Aarch64 uses objc_msgSend for everything. Hurray!
-                .aarch64 => &c.objc_msgSend,
+                .aarch64 => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,
 
                 // x86_64 depends on the return type...
-                .x86_64 => switch (@typeInfo(RealReturn)) {
+                .x86_64 => switch (@typeInfo(Return)) {
                     // Most types use objc_msgSend
-                    inline .Int, .Bool, .Pointer, .Void => &c.objc_msgSend,
+                    inline .Int,
+                    .Bool,
+                    .Pointer,
+                    .Void,
+                    => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,
+
                     .Optional => |opt| opt: {
                         assert(@typeInfo(opt.child) == .Pointer);
-                        break :opt &c.objc_msgSend;
+                        break :opt if (super) &c.objc_msgSendSuper else &c.objc_msgSend;
                     },
 
                     // Structs must use objc_msgSend_stret.
@@ -70,10 +101,19 @@ pub fn MsgSend(comptime T: type) type {
                     // know what the breakpoint actually is for that. This SO
                     // answer says 16 bytes so I'm going to use that but I have
                     // no idea...
-                    .Struct => if (@sizeOf(Return) > 16)
-                        &c.objc_msgSend_stret
-                    else
-                        &c.objc_msgSend,
+                    .Struct => blk: {
+                        if (@sizeOf(Return) > 16) {
+                            break :blk if (super)
+                                &c.objc_msgSendSuper_stret
+                            else
+                                &c.objc_msgSend_stret;
+                        } else {
+                            break :blk if (super)
+                                &c.objc_msgSendSuper
+                            else
+                                &c.objc_msgSend;
+                        }
+                    },
 
                     // Floats use objc_msgSend_fpret for f64 on x86_64,
                     // but normal msgSend for other bit sizes. i386 has
@@ -81,28 +121,19 @@ pub fn MsgSend(comptime T: type) type {
                     // of this comment and probably never will since all i386
                     // Apple models are discontinued at this point.
                     .Float => |float| switch (float.bits) {
-                        64 => &c.objc_msgSend_fpret,
-                        else => &c.objc_msgSend,
+                        64 => if (super) &c.objc_msgSendSuper_fpret else &c.objc_msgSend_fpret,
+                        else => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,
                     },
 
                     // Otherwise we log in case we need to add a new case above
                     else => {
-                        @compileLog(@typeInfo(RealReturn));
+                        @compileLog(@typeInfo(Return));
                         @compileError("unsupported return type for objc runtime on x86_64");
                     },
                 },
+
                 else => @compileError("unsupported objc architecture"),
             };
-
-            // Build our function type and call it
-            const Fn = MsgSendFn(RealReturn, @TypeOf(target.value), @TypeOf(args));
-            // Due to this stage2 Zig issue[1], this must be var for now.
-            // [1]: https://github.com/ziglang/zig/issues/13598
-            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
-            const result = @call(.auto, msg_send_ptr, .{ target.value, sel.value } ++ args);
-
-            if (!is_object) return result;
-            return .{ .value = result };
         }
 
         pub fn msgSendSuper(
@@ -115,44 +146,9 @@ pub fn MsgSend(comptime T: type) type {
             const is_object = Return == objc.Object;
             const RealReturn = if (is_object) c.id else Return;
 
-            const msg_send_fn = switch (builtin.target.cpu.arch) {
-                // Aarch64 uses objc_msgSend for everything. Hurray!
-                .aarch64 => &c.objc_msgSendSuper,
-
-                // x86_64 depends on the return type...
-                .x86_64 => switch (@typeInfo(RealReturn)) {
-                    // Most types use objc_msgSend
-                    inline .Int, .Bool, .Pointer, .Void => &c.objc_msgSend,
-                    .Optional => |opt| opt: {
-                        assert(@typeInfo(opt.child) == .Pointer);
-                        break :opt &c.objc_msgSendSuper;
-                    },
-                    .Struct => if (@sizeOf(Return) > 16)
-                        &c.objc_msgSendSuper_stret
-                    else
-                        &c.objc_msgSendSuper,
-
-                    // Floats use objc_msgSend_fpret for f64 on x86_64,
-                    // but normal msgSend for other bit sizes. i386 has
-                    // more complex rules but we don't support i386 at the time
-                    // of this comment and probably never will since all i386
-                    // Apple models are discontinued at this point.
-                    .Float => |float| switch (float.bits) {
-                        64 => &c.objc_msgSendSuper_fpret,
-                        else => &c.objc_msgSendSuper,
-                    },
-
-                    // Otherwise we log in case we need to add a new case above
-                    else => {
-                        @compileLog(@typeInfo(RealReturn));
-                        @compileError("unsupported return type for objc runtime on x86_64");
-                    },
-                },
-                else => @compileError("unsupported objc architecture"),
-            };
-
             // Build our function type and call it
             const Fn = MsgSendFn(RealReturn, *c.objc_super, @TypeOf(args));
+            const msg_send_fn = comptime msgSendPtr(RealReturn, true);
             // Due to this stage2 Zig issue[1], this must be var for now.
             // [1]: https://github.com/ziglang/zig/issues/13598
             var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);

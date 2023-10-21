@@ -1,205 +1,223 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const objc = @import("main.zig");
 
-const NSConcreteStackBlock = @extern(*anyopaque, .{ .name = "_NSConcreteStackBlock" });
-extern "C" fn _Block_object_assign(dst: *anyopaque, src: *const anyopaque, flag: c_int) void;
-extern "C" fn _Block_object_dispose(src: *const anyopaque, flag: c_int) void;
+// We have to use the raw C allocator for all heap allocation in here
+// because the objc runtime expects `malloc` to be used. If you don't use
+// malloc you'll get segfaults because the objc runtime will try to free
+// the memory with `free`.
+const alloc = std.heap.raw_c_allocator;
 
-/// captures is either a struct type or a struct literal
-// whose fields will be added to the block
-// captures should not be a tuple
-// blockFn is either a function type or an actual function
-pub fn Block(comptime captures: anytype, comptime blockFn: anytype) type {
-    const Captures = @TypeOf(captures);
-    const BlockFn = @TypeOf(blockFn);
-    const captures_info = @typeInfo(Captures);
-    const blockfn_info = @typeInfo(BlockFn);
-    const real_captures_info = switch (captures_info) {
-        .Type => @typeInfo(captures).Struct,
-        .Struct => |s| s,
-        else => @compileError("captures should be a struct type or struct literal"),
-    };
-    const real_blockfn_info = switch (blockfn_info) {
-        .Type => @typeInfo(blockFn).Fn,
-        .Fn => |f| f,
-        .Pointer => |p| @typeInfo(p.child).Fn,
-        else => @compileError("blockFn should be a function type or a function"),
-    };
-    const Return = real_blockfn_info.return_type.?;
-    const params = real_blockfn_info.params;
-    // an invoke function takes at least one argument: a block.
-    std.debug.assert(params.len > 0);
-    // an invoke function's first argument, a block, must be *anyopaque.
-    std.debug.assert(params[0].type == *anyopaque);
-    const fields: []std.builtin.Type.StructField = fields: {
-        var acc: [real_captures_info.fields.len + 5]std.builtin.Type.StructField = undefined;
-        acc[0] = .{
-            .name = "isa",
-            .type = ?*anyopaque,
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = @alignOf(*anyopaque),
-        };
-        acc[1] = .{
-            .name = "flags",
-            .type = c_int,
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = @alignOf(c_int),
-        };
-        acc[2] = .{
-            .name = "reserved",
-            .type = c_int,
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = @alignOf(c_int),
-        };
-        acc[3] = .{
-            .name = "invoke",
-            .type = *const @Type(.{
+/// Creates a new block type with captured (closed over) values.
+///
+/// The CapturesArg is the a struct of captured values that will become
+/// available to the block. The Args is a tuple of types that are additional
+/// invocation-time arguments to the function. The Return param is the return
+/// type of the function.
+///
+/// The function that must be implemented is available as the `Fn` field.
+/// The first argument to the function is always a pointer to the `Context`
+/// type (see field in the struct). This has the captured values.
+///
+/// The captures struct is always available as the `Captures` field which
+/// makes it easy to use an inline type definition for the argument and
+/// reference the type in a named fashion later.
+///
+/// The returned block type can be initialized and invoked multiple times
+/// for different captures and arguments.
+///
+/// See the tests for an example.
+pub fn Block(
+    comptime CapturesArg: type,
+    comptime Args: anytype,
+    comptime Return: type,
+) type {
+    return struct {
+        const Self = @This();
+        const captures_info = @typeInfo(Captures).Struct;
+        const InvokeFn = FnType(anyopaque);
+
+        /// This is the function type that is called back.
+        pub const Fn = FnType(Context);
+
+        /// The captures type, so it can be easily referenced again.
+        pub const Captures = CapturesArg;
+
+        /// This is the block context sent as the first paramter to the function.
+        pub const Context = BlockContext(Captures, InvokeFn);
+
+        /// The context for the block invocations.
+        context: *Context,
+
+        /// Create a new block. This is always created on the heap using the
+        /// libc allocator because the objc runtime expects `malloc` to be
+        /// used.
+        pub fn init(captures: Captures, func: *const Fn) !Self {
+            var ctx = try alloc.create(Context);
+            errdefer alloc.destroy(ctx);
+
+            const flags: BlockFlags = .{ .stret = @typeInfo(Return) == .Struct };
+            ctx.isa = NSConcreteStackBlock;
+            ctx.flags = @bitCast(flags);
+            ctx.invoke = @ptrCast(func);
+            inline for (captures_info.fields) |field| {
+                @field(ctx, field.name) = @field(captures, field.name);
+            }
+
+            const signature = try createFnSignature(Return, @typeInfo(InvokeFn).Fn.params);
+            errdefer alloc.free(signature);
+            var descriptor = try alloc.create(Descriptor);
+            errdefer alloc.destroy(descriptor);
+            descriptor.* = .{
+                .reserved = 0,
+                .size = @sizeOf(Context),
+                .copy_helper = &descCopyHelper,
+                .dispose_helper = &descDisposeHelper,
+                .signature = signature.ptr,
+            };
+            ctx.descriptor = descriptor;
+
+            return .{ .context = ctx };
+        }
+
+        pub fn deinit(self: *Self) void {
+            alloc.destroy(self.context);
+            self.* = undefined;
+        }
+
+        /// Invoke the block with the given arguments. The arguments are
+        /// the arguments to pass to the function beyond the captured scope.
+        pub fn invoke(self: *const Self, args: anytype) Return {
+            return @call(.auto, self.context.invoke, .{self.context} ++ args);
+        }
+
+        fn descCopyHelper(src: *anyopaque, dst: *anyopaque) callconv(.C) void {
+            const real_src: *Context = @ptrCast(@alignCast(src));
+            const real_dst: *Context = @ptrCast(@alignCast(dst));
+            inline for (captures_info.fields) |field| {
+                if (field.type == objc.c.id) {
+                    _Block_object_assign(
+                        @field(real_dst, field.name),
+                        @field(real_src, field.name),
+                        3,
+                    );
+                }
+            }
+        }
+
+        fn descDisposeHelper(src: *anyopaque) callconv(.C) void {
+            const real_src: *Context = @ptrCast(@alignCast(src));
+            inline for (captures_info.fields) |field| {
+                if (field.type == objc.c.id) _Block_object_dispose(@field(real_src, field.name), 3);
+                alloc.free(std.mem.sliceTo(@field(@field(real_src, "descriptor"), "signature").?, 0));
+                alloc.destroy(@field(real_src, "descriptor"));
+            }
+        }
+
+        /// Creates a function type for the invocation function, but alters
+        /// the first arg. The first arg is a pointer so from an ABI perspective
+        /// this is always the same and can be safely casted.
+        fn FnType(comptime ContextArg: type) type {
+            var params: [Args.len + 1]std.builtin.Type.Fn.Param = undefined;
+            params[0] = .{ .is_generic = false, .is_noalias = false, .type = *const ContextArg };
+            for (Args, 1..) |Arg, i| {
+                params[i] = .{ .is_generic = false, .is_noalias = false, .type = Arg };
+            }
+
+            return @Type(.{
                 .Fn = .{
                     .calling_convention = .C,
                     .alignment = @typeInfo(fn () callconv(.C) void).Fn.alignment,
                     .is_generic = false,
                     .is_var_args = false,
                     .return_type = Return,
-                    .params = params,
+                    .params = &params,
                 },
-            }),
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = @typeInfo(*const fn () callconv(.C) void).Pointer.alignment,
-        };
-        acc[4] = .{
-            .name = "descriptor",
-            .type = *Descriptor,
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = @alignOf(*Descriptor),
-        };
-        std.debug.assert(!real_captures_info.is_tuple);
-        for (real_captures_info.fields, 0..) |capture, i| {
-            switch (capture.type) {
-                comptime_int => @compileError("capture should not be a comptime_int! try using @as"),
-                comptime_float => @compileError("capture should not be a comptime_float! try using @as"),
-                else => {},
-            }
-            acc[5 + i] = .{
-                .name = capture.name,
-                .type = capture.type,
-                .default_value = null,
-                .is_comptime = false,
-                .alignment = capture.alignment,
-            };
+            });
         }
-        break :fields &acc;
     };
+}
+
+/// This is the type of a block structure that is passed as the first
+/// argument to any block invocation. See Block.
+fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
+    const captures_info = @typeInfo(Captures).Struct;
+    var fields: [captures_info.fields.len + 5]std.builtin.Type.StructField = undefined;
+    fields[0] = .{
+        .name = "isa",
+        .type = ?*anyopaque,
+        .default_value = null,
+        .is_comptime = false,
+        .alignment = @alignOf(*anyopaque),
+    };
+    fields[1] = .{
+        .name = "flags",
+        .type = c_int,
+        .default_value = null,
+        .is_comptime = false,
+        .alignment = @alignOf(c_int),
+    };
+    fields[2] = .{
+        .name = "reserved",
+        .type = c_int,
+        .default_value = null,
+        .is_comptime = false,
+        .alignment = @alignOf(c_int),
+    };
+    fields[3] = .{
+        .name = "invoke",
+        .type = *const InvokeFn,
+        .default_value = null,
+        .is_comptime = false,
+        .alignment = @typeInfo(*const InvokeFn).Pointer.alignment,
+    };
+    fields[4] = .{
+        .name = "descriptor",
+        .type = *Descriptor,
+        .default_value = null,
+        .is_comptime = false,
+        .alignment = @alignOf(*Descriptor),
+    };
+
+    for (captures_info.fields, 5..) |capture, i| {
+        switch (capture.type) {
+            comptime_int => @compileError("capture should not be a comptime_int, try using @as"),
+            comptime_float => @compileError("capture should not be a comptime_float, try using @as"),
+            else => {},
+        }
+
+        fields[i] = .{
+            .name = capture.name,
+            .type = capture.type,
+            .default_value = null,
+            .is_comptime = false,
+            .alignment = capture.alignment,
+        };
+    }
+
     return @Type(.{
         .Struct = .{
             .layout = .Extern,
-            .fields = fields,
+            .fields = &fields,
             .decls = &.{},
             .is_tuple = false,
         },
     });
 }
 
-/// creates a block (on the heap, using malloc) of type T,
-// which should be the output of Block,
-// assigns the given captures
-// (which should be a struct literal with correct names)
-// and assigns the given function
-// (which should have the correct signature and C calling convention)
-// to the block.
-// Objective-C will free block pointers itself,
-// otherwise you can call free on it yourself.
-pub fn initBlock(comptime T: type, captures: anytype, blockFn: anytype) *T {
-    const allocator = std.heap.raw_c_allocator;
-    var ret = allocator.create(T) catch @panic("OOM!");
-    const captures_info = @typeInfo(@TypeOf(captures)).Struct;
-    var fn_is_pointer = false;
-    const fn_info = switch (@typeInfo(@TypeOf(blockFn))) {
-        .Fn => |f| f,
-        .Pointer => |p| blk: {
-            fn_is_pointer = true;
-            break :blk @typeInfo(p.child).Fn;
-        },
-        else => @compileError("blockFn should be a function!"),
-    };
-    std.debug.assert(fn_info.calling_convention == .C);
-    const Return = fn_info.return_type.?;
-    const ret_type = @typeInfo(Return);
-    const flags: BlockFlags = .{
-        .stret = ret_type == .Struct,
-    };
-    @field(ret, "isa") = NSConcreteStackBlock;
-    @field(ret, "flags") = @as(c_int, @bitCast(flags));
-    @field(ret, "reserved") = undefined;
-    @field(ret, "invoke") = if (fn_is_pointer) blockFn else &blockFn;
-    const inner = struct {
-        fn copy_helper(src: *anyopaque, dst: *anyopaque) callconv(.C) void {
-            var real_src: *T = @ptrCast(@alignCast(src));
-            var real_dst: *T = @ptrCast(@alignCast(dst));
-            inline for (captures_info.fields) |field| {
-                if (field.type == objc.c.id) {
-                    var dst_field = @field(real_dst, field.name);
-                    const src_field = @field(real_src, field.name);
-                    _Block_object_assign(dst_field, src_field, 3);
-                }
-            }
-        }
-        fn dispose_helper(src: *anyopaque) callconv(.C) void {
-            const real_src: *T = @ptrCast(@alignCast(src));
-            inline for (captures_info.fields) |field| {
-                if (field.type == objc.c.id) {
-                    _Block_object_dispose(@field(real_src, field.name), 3);
-                }
-                std.heap.raw_c_allocator.free(std.mem.sliceTo(@field(@field(real_src, "descriptor"), "signature").?, 0));
-                std.heap.raw_c_allocator.destroy(@field(real_src, "descriptor"));
-            }
-        }
-    };
-    const signature = encodeFn(Return, fn_info.params) catch @panic("OOM!");
-    var descriptor = allocator.create(Descriptor) catch @panic("OOM!");
-    descriptor.* = .{
-        .reserved = 0,
-        .size = @sizeOf(T),
-        .copy_helper = inner.copy_helper,
-        .dispose_helper = inner.dispose_helper,
-        .signature = signature.ptr,
-    };
-    @field(ret, "descriptor") = descriptor;
-    inline for (captures_info.fields) |field| {
-        @field(ret, field.name) = @field(captures, field.name);
-    }
-    return ret;
-}
-
-/// contents must be freed with 'free'
-pub fn encodeFn(
+/// Creates the function signature expected by the descriptor.
+pub fn createFnSignature(
     comptime Return: type,
     comptime Args: []const std.builtin.Type.Fn.Param,
 ) ![:0]const u8 {
-    var allocator = std.heap.raw_c_allocator;
-    const String = std.ArrayList(u8);
-    var list = try String.initCapacity(allocator, 1024);
+    var list = try std.ArrayList(u8).initCapacity(alloc, 1024);
     defer list.deinit();
-    const str = try encode_inner(Return);
-    try list.appendSlice(str);
-    allocator.free(str);
-    inline for (Args) |arg| {
-        const arg_str = try encode_inner(arg.type.?);
-        defer allocator.free(arg_str);
-        try list.appendSlice(arg_str);
-    }
-    return allocator.dupeZ(u8, list.items);
+    try typeSignature(&list, Return);
+    inline for (Args) |arg| try typeSignature(&list, arg.type.?);
+    return try list.toOwnedSliceSentinel(0);
 }
 
-fn encode_inner(comptime T: type) ![]const u8 {
-    var allocator = std.heap.raw_c_allocator;
-    const String = std.ArrayList(u8);
-    var list = try String.initCapacity(allocator, 128);
-    defer list.deinit();
+fn typeSignature(list: *std.ArrayList(u8), comptime T: type) !void {
     switch (T) {
         objc.Object, objc.c.id => try list.append('@'),
         objc.Class, objc.c.Class => try list.append('#'),
@@ -222,44 +240,29 @@ fn encode_inner(comptime T: type) ![]const u8 {
             switch (type_info) {
                 .Struct => |s| {
                     try list.appendSlice("{?=");
-                    for (s.fields) |field| {
-                        const str = try encode_inner(field.type);
-                        defer allocator.free(str);
-                        try list.appendSlice(str);
-                    }
+                    inline for (s.fields) |field| try typeSignature(list, field.type);
                     try list.appendSlice("}");
                 },
                 .Union => |u| {
                     try list.appendSlice("(?=");
-                    for (u.fields) |field| {
-                        const str = try encode_inner(field.type);
-                        defer allocator.free(str);
-                        try list.appendSlice(str);
-                    }
+                    inline for (u.fields) |field| try typeSignature(list, field.type);
                     try list.appendSlice(")");
                 },
                 .Pointer => |p| {
                     try list.append('^');
-                    const str = try encode_inner(p.child);
-                    defer allocator.free(str);
-                    try list.appendSlice(str);
+                    try typeSignature(list, p.child);
                 },
                 .Fn => try list.append('?'),
                 .Opaque => try list.append('v'),
-                else => @compileError("unsupported type for encode(): " ++ @typeName(T)),
+                else => @compileError("unsupported type for typeSignature: " ++ @typeName(T)),
             }
         },
     }
-    return allocator.dupe(u8, list.items);
 }
 
-/// contents must be freed with 'free'
-pub fn encode(comptime T: type) ![:0]const u8 {
-    const allocator = std.heap.raw_c_allocator;
-    const str = try encode_inner(T);
-    defer allocator.free(str);
-    return allocator.dupeZ(u8, str);
-}
+const NSConcreteStackBlock = @extern(*anyopaque, .{ .name = "_NSConcreteStackBlock" });
+extern "C" fn _Block_object_assign(dst: *anyopaque, src: *const anyopaque, flag: c_int) void;
+extern "C" fn _Block_object_dispose(src: *const anyopaque, flag: c_int) void;
 
 const Descriptor = extern struct {
     reserved: c_ulong = 0,
@@ -269,7 +272,7 @@ const Descriptor = extern struct {
     signature: ?[*:0]const u8,
 };
 
-const BlockFlags = packed struct {
+const BlockFlags = packed struct(c_int) {
     _unused: u22 = 0,
     noescape: bool = false,
     _unused_2: bool = false,
@@ -280,37 +283,26 @@ const BlockFlags = packed struct {
     stret: bool,
     signature: bool = true,
     _unused_4: u2 = 0,
-
-    comptime {
-        std.debug.assert(@sizeOf(@This()) == @sizeOf(c_int));
-        std.debug.assert(@bitSizeOf(@This()) == @bitSizeOf(c_int));
-    }
 };
 
-pub fn invokeBlock(comptime T: type, comptime Return: type, block: *T, args: anytype) Return {
-    var invoke = @field(block, "invoke");
-    const ret: Return = @call(.auto, invoke, .{block} ++ args);
-    return ret;
-}
-
-test "Block and invokeBlock" {
-    const Captures = struct {
+test "Block" {
+    const AddBlock = Block(struct {
         x: i32,
         y: i32,
-    };
-    const AddBlock = Block(Captures, fn (block: *anyopaque) i32);
-    const captures = .{
+    }, .{}, i32);
+
+    const captures: AddBlock.Captures = .{
         .x = 2,
         .y = 3,
     };
-    const inner = struct {
-        fn addFn(block: *anyopaque) callconv(.C) i32 {
-            const realBlock: *AddBlock = @ptrCast(@alignCast(block));
-            return realBlock.x + realBlock.y;
+
+    var block = try AddBlock.init(captures, (struct {
+        fn addFn(block: *const AddBlock.Context) callconv(.C) i32 {
+            return block.x + block.y;
         }
-    };
-    var block = initBlock(AddBlock, captures, inner.addFn);
-    defer std.heap.raw_c_allocator.destroy(block);
-    const ret = invokeBlock(AddBlock, i32, block, .{});
+    }).addFn);
+    defer block.deinit();
+
+    const ret = block.invoke(.{});
     try std.testing.expectEqual(@as(i32, 5), ret);
 }

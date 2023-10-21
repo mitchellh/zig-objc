@@ -64,15 +64,20 @@ pub const Class = struct {
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) !bool {
-        const fn_info = @typeInfo(@TypeOf(imp)).Fn;
+        const Fn = @TypeOf(imp);
+        const fn_info = @typeInfo(Fn).Fn;
         assert(fn_info.calling_convention == .C);
         assert(fn_info.is_var_args == false);
         assert(fn_info.params.len >= 2);
         assert(fn_info.params[0].type == c.id);
         assert(fn_info.params[1].type == c.SEL);
-        const str = try objc.createFnSignature(fn_info.return_type.?, fn_info.params);
-        defer std.heap.raw_c_allocator.free(str);
-        return c.class_addMethod(self.value, objc.sel(name).value, @ptrCast(&imp), str.ptr);
+        const encoding = comptime objc.comptimeEncode(Fn);
+        return c.class_addMethod(
+            self.value,
+            objc.sel(name).value,
+            @ptrCast(&imp),
+            encoding.ptr,
+        );
     }
 
     // only call this function between allocateClassPair and registerClassPair

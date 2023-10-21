@@ -36,6 +36,7 @@ pub fn Block(
         const Self = @This();
         const captures_info = @typeInfo(Captures).Struct;
         const InvokeFn = FnType(anyopaque);
+        const signature: [:0]const u8 = objc.comptimeEncode(InvokeFn);
 
         /// This is the function type that is called back.
         pub const Fn = FnType(Context);
@@ -64,8 +65,6 @@ pub fn Block(
                 @field(ctx, field.name) = @field(captures, field.name);
             }
 
-            const signature = try createFnSignature(Return, @typeInfo(InvokeFn).Fn.params);
-            errdefer alloc.free(signature);
             var descriptor = try alloc.create(Descriptor);
             errdefer alloc.destroy(descriptor);
             descriptor.* = .{
@@ -203,61 +202,6 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
             .is_tuple = false,
         },
     });
-}
-
-/// Creates the function signature expected by the descriptor.
-pub fn createFnSignature(
-    comptime Return: type,
-    comptime Args: []const std.builtin.Type.Fn.Param,
-) ![:0]const u8 {
-    var list = try std.ArrayList(u8).initCapacity(alloc, 1024);
-    defer list.deinit();
-    try typeSignature(&list, Return);
-    inline for (Args) |arg| try typeSignature(&list, arg.type.?);
-    return try list.toOwnedSliceSentinel(0);
-}
-
-fn typeSignature(list: *std.ArrayList(u8), comptime T: type) !void {
-    switch (T) {
-        objc.Object, objc.c.id => try list.append('@'),
-        objc.Class, objc.c.Class => try list.append('#'),
-        objc.Sel, objc.c.SEL => try list.append(':'),
-        bool => try list.append('B'),
-        u8 => try list.append('C'),
-        i8 => try list.append('c'),
-        u16 => try list.append('S'),
-        i16 => try list.append('s'),
-        u32, c_uint => try list.append('I'),
-        i32, c_int => try list.append('i'),
-        u64, c_ulong, c_ulonglong => try list.append('Q'),
-        i64, c_long, c_longlong => try list.append('q'),
-        f32 => try list.append('f'),
-        f64 => try list.append('d'),
-        [:0]const u8, [*c]const u8, [:0]u8, [*c]u8 => try list.append('*'),
-        void => try list.append('v'),
-        else => {
-            const type_info = @typeInfo(T);
-            switch (type_info) {
-                .Struct => |s| {
-                    try list.appendSlice("{?=");
-                    inline for (s.fields) |field| try typeSignature(list, field.type);
-                    try list.appendSlice("}");
-                },
-                .Union => |u| {
-                    try list.appendSlice("(?=");
-                    inline for (u.fields) |field| try typeSignature(list, field.type);
-                    try list.appendSlice(")");
-                },
-                .Pointer => |p| {
-                    try list.append('^');
-                    try typeSignature(list, p.child);
-                },
-                .Fn => try list.append('?'),
-                .Opaque => try list.append('v'),
-                else => @compileError("unsupported type for typeSignature: " ++ @typeName(T)),
-            }
-        },
-    }
 }
 
 const NSConcreteStackBlock = @extern(*anyopaque, .{ .name = "_NSConcreteStackBlock" });

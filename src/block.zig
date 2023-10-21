@@ -36,7 +36,13 @@ pub fn Block(
         const Self = @This();
         const captures_info = @typeInfo(Captures).Struct;
         const InvokeFn = FnType(anyopaque);
-        const signature: [:0]const u8 = objc.comptimeEncode(InvokeFn);
+        const descriptor: Descriptor = .{
+            .reserved = 0,
+            .size = @sizeOf(Context),
+            .copy_helper = &descCopyHelper,
+            .dispose_helper = &descDisposeHelper,
+            .signature = objc.comptimeEncode(InvokeFn).ptr,
+        };
 
         /// This is the function type that is called back.
         pub const Fn = FnType(Context);
@@ -61,20 +67,10 @@ pub fn Block(
             ctx.isa = NSConcreteStackBlock;
             ctx.flags = @bitCast(flags);
             ctx.invoke = @ptrCast(func);
+            ctx.descriptor = &descriptor;
             inline for (captures_info.fields) |field| {
                 @field(ctx, field.name) = @field(captures, field.name);
             }
-
-            var descriptor = try alloc.create(Descriptor);
-            errdefer alloc.destroy(descriptor);
-            descriptor.* = .{
-                .reserved = 0,
-                .size = @sizeOf(Context),
-                .copy_helper = &descCopyHelper,
-                .dispose_helper = &descDisposeHelper,
-                .signature = signature.ptr,
-            };
-            ctx.descriptor = descriptor;
 
             return .{ .context = ctx };
         }
@@ -111,7 +107,6 @@ pub fn Block(
                     _Block_object_dispose(@field(real_src, field.name), 3);
                 }
             }
-            alloc.destroy(real_src.descriptor);
         }
 
         /// Creates a function type for the invocation function, but alters
@@ -173,7 +168,7 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
     };
     fields[4] = .{
         .name = "descriptor",
-        .type = *Descriptor,
+        .type = *const Descriptor,
         .default_value = null,
         .is_comptime = false,
         .alignment = @alignOf(*Descriptor),

@@ -38,9 +38,7 @@ pub fn MsgSend(comptime T: type) type {
             // Build our function type and call it
             const Fn = MsgSendFn(RealReturn, @TypeOf(target.value), @TypeOf(args));
             const msg_send_fn = comptime msgSendPtr(RealReturn, false);
-            // Due to this stage2 Zig issue[1], this must be var for now.
-            // [1]: https://github.com/ziglang/zig/issues/13598
-            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
+            const msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
             const result = @call(.auto, msg_send_ptr, .{ target.value, sel.value } ++ args);
 
             if (!is_object) return result;
@@ -66,7 +64,7 @@ pub fn MsgSend(comptime T: type) type {
 
             const Fn = MsgSendFn(RealReturn, *c.objc_super, @TypeOf(args));
             const msg_send_fn = comptime msgSendPtr(RealReturn, true);
-            var msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
+            const msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
             var super: c.objc_super = .{
                 .receiver = target.value,
                 .super_class = superclass.value,

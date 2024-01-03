@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
 
-    _ = b.addModule("objc", .{ .source_file = .{ .path = "src/main.zig" } });
+    _ = b.addModule("objc", .{ .root_source_file = .{ .path = "src/main.zig" } });
 
     const tests = b.addTest(.{
         .name = "objc-test",

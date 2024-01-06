@@ -96,7 +96,22 @@ pub const Object = struct {
         const ivar = c.object_getInstanceVariable(self.value, name, null);
         c.object_setIvar(self.value, ivar, val.value);
     }
+
+    pub fn retain(self: Object) Object {
+        return fromId(objc_retain(self.value));
+    }
+
+    pub fn release(self: Object) void {
+        objc_release(self.value);
+    }
 };
+
+extern "c" fn objc_retain(objc.c.id) objc.c.id;
+extern "c" fn objc_release(objc.c.id) void;
+
+fn retainCount(obj: Object) c_ulong {
+    return obj.msgSend(c_ulong, objc.Sel.registerName("retainCount"), .{});
+}
 
 test {
     const testing = std.testing;
@@ -106,5 +121,22 @@ test {
     const obj = NSObject.msgSend(objc.Object, objc.Sel.registerName("alloc"), .{});
     try testing.expect(obj.value != null);
     try testing.expectEqualStrings("NSObject", obj.getClassName());
+    obj.msgSend(void, objc.sel("dealloc"), .{});
+}
+
+test "retain object" {
+    const testing = std.testing;
+    const NSObject = objc.getClass("NSObject").?;
+
+    const obj = NSObject.msgSend(objc.Object, objc.Sel.registerName("alloc"), .{});
+    _ = obj.msgSend(objc.Object, objc.Sel.registerName("init"), .{});
+    try testing.expectEqual(@as(c_ulong, 1), retainCount(obj));
+
+    _ = obj.retain();
+    try testing.expectEqual(@as(c_ulong, 2), retainCount(obj));
+
+    obj.release();
+    try testing.expectEqual(@as(c_ulong, 1), retainCount(obj));
+
     obj.msgSend(void, objc.sel("dealloc"), .{});
 }

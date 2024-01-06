@@ -200,7 +200,9 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
     });
 }
 
-const NSConcreteStackBlock = @extern(*anyopaque, .{ .name = "_NSConcreteStackBlock" });
+// Pointer to opaque instead of anyopaque: https://github.com/ziglang/zig/issues/18461
+const NSConcreteStackBlock = @extern(*opaque {}, .{ .name = "_NSConcreteStackBlock" });
+
 extern "C" fn _Block_object_assign(dst: *anyopaque, src: *const anyopaque, flag: c_int) void;
 extern "C" fn _Block_object_dispose(src: *const anyopaque, flag: c_int) void;
 

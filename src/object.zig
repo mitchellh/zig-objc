@@ -97,15 +97,10 @@ pub const Object = struct {
         c.object_setIvar(self.value, ivar, val.value);
     }
 
-    /// In MacOS SDK, the memory is managed by ARC(Automatic Reference Counting).
-    /// Therefore, it not must retain an object explictlly.
-    /// But if you'd like to keep reference of objc object in ziglang-side, it could use this method to avoid releqsing object by ARC.
     pub fn retain(self: Object) Object {
         return fromId(objc_retain(self.value));
     }
 
-    /// if you have use the retain method, you must call the release method.
-    /// Otherwise, a memory leak will occur.
     pub fn release(self: Object) void {
         objc_release(self.value);
     }
@@ -113,6 +108,10 @@ pub const Object = struct {
 
 extern "c" fn objc_retain(objc.c.id) objc.c.id;
 extern "c" fn objc_release(objc.c.id) void;
+
+fn retainCount(obj: Object) c_ulong {
+    return obj.msgSend(c_ulong, objc.Sel.registerName("retainCount"), .{});
+}
 
 test {
     const testing = std.testing;
@@ -123,10 +122,6 @@ test {
     try testing.expect(obj.value != null);
     try testing.expectEqualStrings("NSObject", obj.getClassName());
     obj.msgSend(void, objc.sel("dealloc"), .{});
-}
-
-fn retainCount(obj: Object) c_ulong {
-    return obj.msgSend(c_ulong, objc.Sel.registerName("retainCount"), .{});
 }
 
 test "retain object" {

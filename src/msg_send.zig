@@ -93,6 +93,7 @@ pub fn MsgSend(comptime T: type) type {
                     // Most types use objc_msgSend
                     inline .Int,
                     .Bool,
+                    .Enum,
                     .Pointer,
                     .Void,
                     => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,

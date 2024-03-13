@@ -121,7 +121,7 @@ pub const Encoding = union(enum) {
             },
             .structure => |s| {
                 const struct_info = @typeInfo(s.struct_type);
-                assert(struct_info.Struct.layout == .Extern);
+                assert(struct_info.Struct.layout == .@"extern");
 
                 // Strips the fully qualified type name to leave just the
                 // type name. Used in naming the Struct in an encoding.
@@ -143,7 +143,7 @@ pub const Encoding = union(enum) {
             },
             .@"union" => |u| {
                 const union_info = @typeInfo(u.union_type);
-                assert(union_info.Union.layout == .Extern);
+                assert(union_info.Union.layout == .@"extern");
 
                 // Strips the fully qualified type name to leave just the
                 // type name. Used in naming the Union in an encoding

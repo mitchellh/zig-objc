@@ -192,7 +192,7 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
 
     return @Type(.{
         .Struct = .{
-            .layout = .Extern,
+            .layout = .@"extern",
             .fields = &fields,
             .decls = &.{},
             .is_tuple = false,

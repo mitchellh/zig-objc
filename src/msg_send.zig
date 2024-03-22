@@ -204,14 +204,9 @@ fn MsgSendFn(
         break :params &acc;
     };
 
-    // Copy the alignment of a normal function type so equality works
-    // (mainly for tests, I don't think this has any consequence otherwise)
-    const alignment = @typeInfo(fn () callconv(.C) void).Fn.alignment;
-
     return @Type(.{
         .Fn = .{
             .calling_convention = .C,
-            .alignment = alignment,
             .is_generic = false,
             .is_var_args = false,
             .return_type = Return,

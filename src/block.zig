@@ -122,7 +122,6 @@ pub fn Block(
             return @Type(.{
                 .Fn = .{
                     .calling_convention = .C,
-                    .alignment = @typeInfo(fn () callconv(.C) void).Fn.alignment,
                     .is_generic = false,
                     .is_var_args = false,
                     .return_type = Return,

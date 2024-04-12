@@ -41,7 +41,7 @@ pub fn Block(
             .size = @sizeOf(Context),
             .copy_helper = &descCopyHelper,
             .dispose_helper = &descDisposeHelper,
-            .signature = objc.comptimeEncode(InvokeFn).ptr,
+            .signature = &objc.comptimeEncode(InvokeFn),
         };
 
         /// This is the function type that is called back.

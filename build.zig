@@ -5,7 +5,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const add_paths = b.option(bool, "add-paths", "add macos SDK paths from dependency") orelse false;
 
-    const objc = b.addModule("objc", .{ .root_source_file = .{ .path = "src/main.zig" } });
+    const objc = b.addModule("objc", .{
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
     if (add_paths) @import("macos_sdk").addPathsModule(objc);
     objc.linkSystemLibrary("objc", .{});
     objc.linkFramework("Foundation", .{});

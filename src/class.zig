@@ -76,7 +76,7 @@ pub const Class = struct {
             self.value,
             objc.sel(name).value,
             @ptrCast(&imp),
-            encoding.ptr,
+            &encoding,
         ));
     }
 

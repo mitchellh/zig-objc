@@ -4,22 +4,30 @@ const c = @import("c.zig");
 const assert = std.debug.assert;
 const testing = std.testing;
 
-/// Encode a type into a comptime string.
-pub fn comptimeEncode(comptime T: type) [:0]const u8 {
+/// how much space do we need to encode this type?
+fn comptimeN(comptime T: type) usize {
     comptime {
         const encoding = objc.Encoding.init(T);
 
         // Figure out how much space we need
         var counting = std.io.countingWriter(std.io.null_writer);
         try std.fmt.format(counting.writer(), "{}", .{encoding});
+        return counting.bytes_written;
+    }
+}
+
+/// Encode a type into a comptime string.
+pub fn comptimeEncode(comptime T: type) [comptimeN(T):0]u8 {
+    comptime {
+        const encoding = objc.Encoding.init(T);
 
         // Build our final signature
-        var buf: [counting.bytes_written + 1]u8 = undefined;
-        var fbs = std.io.fixedBufferStream(buf[0..counting.bytes_written]);
+        var buf: [comptimeN(T) + 1]u8 = undefined;
+        var fbs = std.io.fixedBufferStream(buf[0 .. buf.len - 1]);
         try std.fmt.format(fbs.writer(), "{}", .{encoding});
-        buf[counting.bytes_written] = 0;
+        buf[buf.len - 1] = 0;
 
-        return buf[0..counting.bytes_written :0];
+        return buf[0 .. buf.len - 1 :0].*;
     }
 }
 

@@ -2,7 +2,7 @@
   description = "Objective-C runtime bindings for Zig";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/release-23.05";
+    nixpkgs.url = "github:nixos/nixpkgs/release-24.05";
     flake-utils.url = "github:numtide/flake-utils";
     zig.url = "github:mitchellh/zig-overlay";
 
@@ -35,7 +35,7 @@
       in rec {
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            zigpkgs.master
+            zigpkgs."0.13.0"
           ];
         };
 

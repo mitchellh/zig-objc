@@ -127,16 +127,6 @@ pub fn Block(
                     .params = &params,
                 },
             });
-
-            // return @Type(.{
-            //     .fn = .{
-            //         .calling_convention = .C,
-            //         .is_generic = false,
-            //         .is_var_args = false,
-            //         .return_type = Return,
-            //         .params = &params,
-            //     },
-            // });
         }
     };
 }

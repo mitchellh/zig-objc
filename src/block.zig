@@ -34,7 +34,7 @@ pub fn Block(
 ) type {
     return struct {
         const Self = @This();
-        const captures_info = @typeInfo(Captures).Struct;
+        const captures_info = @typeInfo(Captures).@"struct";
         const InvokeFn = FnType(anyopaque);
         const descriptor: Descriptor = .{
             .reserved = 0,
@@ -63,7 +63,7 @@ pub fn Block(
             var ctx = try alloc.create(Context);
             errdefer alloc.destroy(ctx);
 
-            const flags: BlockFlags = .{ .stret = @typeInfo(Return) == .Struct };
+            const flags: BlockFlags = .{ .stret = @typeInfo(Return) == .@"struct" };
             ctx.isa = NSConcreteStackBlock;
             ctx.flags = @bitCast(flags);
             ctx.invoke = @ptrCast(func);
@@ -118,9 +118,8 @@ pub fn Block(
             for (Args, 1..) |Arg, i| {
                 params[i] = .{ .is_generic = false, .is_noalias = false, .type = Arg };
             }
-
             return @Type(.{
-                .Fn = .{
+                .@"fn" = .{
                     .calling_convention = .C,
                     .is_generic = false,
                     .is_var_args = false,
@@ -128,6 +127,16 @@ pub fn Block(
                     .params = &params,
                 },
             });
+
+            // return @Type(.{
+            //     .fn = .{
+            //         .calling_convention = .C,
+            //         .is_generic = false,
+            //         .is_var_args = false,
+            //         .return_type = Return,
+            //         .params = &params,
+            //     },
+            // });
         }
     };
 }
@@ -135,7 +144,7 @@ pub fn Block(
 /// This is the type of a block structure that is passed as the first
 /// argument to any block invocation. See Block.
 fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
-    const captures_info = @typeInfo(Captures).Struct;
+    const captures_info = @typeInfo(Captures).@"struct";
     var fields: [captures_info.fields.len + 5]std.builtin.Type.StructField = undefined;
     fields[0] = .{
         .name = "isa",
@@ -163,7 +172,7 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
         .type = *const InvokeFn,
         .default_value = null,
         .is_comptime = false,
-        .alignment = @typeInfo(*const InvokeFn).Pointer.alignment,
+        .alignment = @typeInfo(*const InvokeFn).pointer.alignment,
     };
     fields[4] = .{
         .name = "descriptor",
@@ -190,7 +199,7 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
     }
 
     return @Type(.{
-        .Struct = .{
+        .@"struct" = .{
             .layout = .@"extern",
             .fields = &fields,
             .decls = &.{},

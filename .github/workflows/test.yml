@@ -10,13 +10,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@v1.2.0
-        with:
-          path: |
-            /nix
-            /zig
-
       - uses: cachix/install-nix-action@v30
         with:
           nix_path: nixpkgs=channel:nixos-unstable

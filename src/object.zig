@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig");
 const objc = @import("main.zig");
 const MsgSend = @import("msg_send.zig").MsgSend;
+const Iterator = @import("iterator.zig").Iterator;
 
 /// Object is an instance of a class.
 pub const Object = struct {
@@ -103,6 +104,12 @@ pub const Object = struct {
 
     pub fn release(self: Object) void {
         objc_release(self.value);
+    }
+
+    /// Return an iterator for this object. The object must implement the
+    /// `NSFastEnumeration` protocol.
+    pub fn iterate(self: Object) Iterator {
+        return Iterator.init(self);
     }
 };
 

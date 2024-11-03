@@ -2,10 +2,7 @@ on: [push, pull_request]
 name: Test
 jobs:
   build:
-    runs-on: macos-12
-    env:
-      # Needed for macos SDK
-      AGREE: "true"
+    runs-on: namespace-profile-ghostty-macos
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

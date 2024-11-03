@@ -8,10 +8,5 @@
         "README.md",
         "LICENSE",
     },
-    .dependencies = .{
-        .macos_sdk = .{
-            .url = "https://github.com/mitchellh/zig-build-macos-sdk/archive/a4ea24f105902111633c6ae9f888b676ac5e36df.tar.gz",
-            .hash = "12209cc9ee372456eda52b71cf9ae77dcc707fa42c9f9d68996b5bf7495b53229c2e",
-        },
-    },
+    .dependencies = .{},
 }

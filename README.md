@@ -73,22 +73,21 @@ const NSOperatingSystemVersion = extern struct {
 
 ## Usage
 
-**Warning:** This project follows the nightly releases of Zig and may
-not work with released versions of Zig until Zig stabilizes. I also
-am **not promising API stability** right now.
-
-Use your favorite Zig package manager or vendor this repository, then add the package.
-For example in your build.zig:
+Add this repository to your `build.zig.zon` file. Then:
 
 ```zig
-const objc = @import("vendor/zig-objc/build.zig");
-
 pub fn build(b: *std.build.Builder) !void {
   // ... other stuff
 
-  exe.addPackage(objc.pkg);
+  exe.root_module.addImport("obcj", b.dependency("zig_objc", .{
+    .target = target,
+    .optimize = optimize,
+  }).module("objc"));
 }
 ```
+
+**`zig-objc` only works with released versions of Zig.** We don't support
+nightly versions because the Zig compiler is still changing too much.
 
 ## Documentation
 

@@ -86,6 +86,11 @@ pub fn build(b: *std.build.Builder) !void {
 }
 ```
 
+Note that `zig-objc` will find and link to headers from the target SDK
+(macOS, iOS, etc.) automatically by finding your Xcode installation. If
+Xcode is not installed, you can add it manually but you must set the
+`-Dadd-paths=false` flag.
+
 **`zig-objc` only works with released versions of Zig.** We don't support
 nightly versions because the Zig compiler is still changing too much.
 

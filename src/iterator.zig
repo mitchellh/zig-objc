@@ -3,34 +3,30 @@ const objc = @import("main.zig");
 
 // From <Foundation/NSEnumerator.h>.
 const NSFastEnumerationState = extern struct {
-    state: c_ulong,
-    itemsPtr: ?[*]objc.c.id,
-    mutationsPtr: ?*c_ulong,
-    extra: [5]c_ulong,
+    state: c_ulong = 0,
+    itemsPtr: ?[*]objc.c.id = null,
+    mutationsPtr: ?*c_ulong = null,
+    extra: [5]c_ulong = [_]c_ulong{0} ** 5,
 };
 
+/// An iterator that uses the fast enumeration protocol[1] to iterate over
+/// objects in an Objective-C collection. This can be used with any object
+/// that conforms to the `NSFastEnumeration` protocol.
+///
+/// [1]: Nhttps://developer.apple.com/documentation/foundation/nsfastenumeration
 pub const Iterator = struct {
     object: objc.Object,
     sel: objc.Sel,
-    state: NSFastEnumerationState,
-    initial_mutations_value: ?c_ulong,
+    state: NSFastEnumerationState = .{},
+    initial_mutations_value: ?c_ulong = null,
     // Clang compiles `for…in` loops with a size 16 buffer.
-    buffer: [16]objc.c.id,
-    slice: []objc.c.id,
+    buffer: [16]objc.c.id = [_]objc.c.id{null} ** 16,
+    slice: []const objc.c.id = &.{},
 
     pub fn init(object: objc.Object) Iterator {
         return .{
             .object = object,
             .sel = objc.sel("countByEnumeratingWithState:objects:count:"),
-            .state = .{
-                .state = 0,
-                .itemsPtr = null,
-                .mutationsPtr = null,
-                .extra = [_]c_ulong{0} ** 5,
-            },
-            .initial_mutations_value = null,
-            .buffer = [_]objc.c.id{null} ** 16,
-            .slice = &[_]objc.c.id{},
         };
     }
 
@@ -54,13 +50,11 @@ pub const Iterator = struct {
             self.slice = self.state.itemsPtr.?[0..count];
         }
 
-        if (self.slice.len > 0) {
-            const first = self.slice[0];
-            self.slice = self.slice[1..];
-            return objc.Object.fromId(first);
-        } else {
-            return null;
-        }
+        if (self.slice.len == 0) return null;
+
+        const first = self.slice[0];
+        self.slice = self.slice[1..];
+        return objc.Object.fromId(first);
     }
 };
 

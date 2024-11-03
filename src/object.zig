@@ -106,6 +106,8 @@ pub const Object = struct {
         objc_release(self.value);
     }
 
+    /// Return an iterator for this object. The object must implement the
+    /// `NSFastEnumeration` protocol.
     pub fn iterate(self: Object) Iterator {
         return Iterator.init(self);
     }

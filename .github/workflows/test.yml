@@ -3,9 +3,6 @@ name: Test
 jobs:
   build:
     runs-on: namespace-profile-ghostty-macos
-    env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

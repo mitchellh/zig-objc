@@ -216,15 +216,12 @@ fn MsgSendFn(
 }
 
 test {
-    // https://github.com/ziglang/zig/issues/12360
-    if (true) return error.SkipZigTest;
-
     const testing = std.testing;
     try testing.expectEqual(fn (
-        u8,
-        objc.Sel,
-    ) callconv(.C) u64, MsgSendFn(u64, u8, @TypeOf(.{})));
-    try testing.expectEqual(fn (u8, objc.Sel, u16, u32) callconv(.C) u64, MsgSendFn(u64, u8, @TypeOf(.{
+        c.id,
+        c.SEL,
+    ) callconv(.C) u64, MsgSendFn(u64, c.id, @TypeOf(.{})));
+    try testing.expectEqual(fn (c.id, c.SEL, u16, u32) callconv(.C) u64, MsgSendFn(u64, c.id, @TypeOf(.{
         @as(u16, 0),
         @as(u32, 0),
     })));

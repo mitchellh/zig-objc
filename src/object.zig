@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig");
+const c = @import("c.zig").c;
 const objc = @import("main.zig");
 const MsgSend = @import("msg_send.zig").MsgSend;
 const Iterator = @import("iterator.zig").Iterator;
@@ -8,7 +8,10 @@ const Iterator = @import("iterator.zig").Iterator;
 pub const Object = struct {
     value: c.id,
 
-    pub usingnamespace MsgSend(Object);
+    // Implement msgSend
+    const msg_send = MsgSend(Object);
+    pub const msgSend = msg_send.msgSend;
+    pub const msgSendSuper = msg_send.msgSendSuper;
 
     /// Convert a raw "id" into an Object. id must fit the size of the
     /// normal C "id" type (i.e. a `usize`).

@@ -1,6 +1,6 @@
 const std = @import("std");
 const objc = @import("main.zig");
-const c = @import("c.zig");
+const c = @import("c.zig").c;
 const assert = std.debug.assert;
 const testing = std.testing;
 

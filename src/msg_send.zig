@@ -1,12 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
-const c = @import("c.zig");
+const c = @import("c.zig").c;
 const objc = @import("main.zig");
 
 /// Returns a struct that implements the msgSend function for type T.
-/// This is meant to be used with `usingnamespace` to add dispatch
-/// capability to a type that supports it.
 pub fn MsgSend(comptime T: type) type {
     // 1. T should be a struct
     // 2. T should have a field "value" that can be an "id" (same size)

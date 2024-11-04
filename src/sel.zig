@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig");
+const c = @import("c.zig").c;
 
 // Shorthand, equivalent to Sel.registerName
 pub inline fn sel(name: [:0]const u8) Sel {

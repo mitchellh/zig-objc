@@ -1,4 +1,4 @@
-pub usingnamespace @cImport({
+pub const c = @cImport({
     @cInclude("objc/runtime.h");
     @cInclude("objc/message.h");
 });

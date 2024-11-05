@@ -116,8 +116,8 @@ pub const Object = struct {
     }
 };
 
-extern "c" fn objc_retain(objc.c.id) objc.c.id;
-extern "c" fn objc_release(objc.c.id) void;
+extern "c" fn objc_retain(c.id) c.id;
+extern "c" fn objc_release(c.id) void;
 
 fn retainCount(obj: Object) c_ulong {
     return obj.msgSend(c_ulong, objc.Sel.registerName("retainCount"), .{});

@@ -89,15 +89,15 @@ pub fn MsgSend(comptime T: type) type {
                 // x86_64 depends on the return type...
                 .x86_64 => switch (@typeInfo(Return)) {
                     // Most types use objc_msgSend
-                    inline .Int,
-                    .Bool,
-                    .Enum,
-                    .Pointer,
-                    .Void,
+                    inline .int,
+                    .bool,
+                    .@"enum",
+                    .pointer,
+                    .void,
                     => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,
 
-                    .Optional => |opt| opt: {
-                        assert(@typeInfo(opt.child) == .Pointer);
+                    .optional => |opt| opt: {
+                        assert(@typeInfo(opt.child) == .pointer);
                         break :opt if (super) &c.objc_msgSendSuper else &c.objc_msgSend;
                     },
 
@@ -108,7 +108,7 @@ pub fn MsgSend(comptime T: type) type {
                     // know what the breakpoint actually is for that. This SO
                     // answer says 16 bytes so I'm going to use that but I have
                     // no idea...
-                    .Struct => blk: {
+                    .@"struct" => blk: {
                         if (@sizeOf(Return) > 16) {
                             break :blk if (super)
                                 &c.objc_msgSendSuper_stret
@@ -127,7 +127,7 @@ pub fn MsgSend(comptime T: type) type {
                     // more complex rules but we don't support i386 at the time
                     // of this comment and probably never will since all i386
                     // Apple models are discontinued at this point.
-                    .Float => |float| switch (float.bits) {
+                    .float => |float| switch (float.bits) {
                         64 => if (super) &c.objc_msgSendSuper_fpret else &c.objc_msgSend_fpret,
                         else => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,
                     },
@@ -174,7 +174,7 @@ fn MsgSendFn(
     comptime Target: type,
     comptime Args: type,
 ) type {
-    const argsInfo = @typeInfo(Args).Struct;
+    const argsInfo = @typeInfo(Args).@"struct";
     assert(argsInfo.is_tuple);
 
     // Target must always be an "id". Lots of types (Class, Object, etc.)
@@ -203,7 +203,7 @@ fn MsgSendFn(
     };
 
     return @Type(.{
-        .Fn = .{
+        .@"fn" = .{
             .calling_convention = .C,
             .is_generic = false,
             .is_var_args = false,

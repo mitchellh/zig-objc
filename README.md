@@ -9,27 +9,27 @@ shipping code that I run every day.
 
 ## Features
 
-* Classes:
-  * Find classes
-  * Read property metadata
-  * Call methods
-  * Create subclasses
-  * Add methods
-  * Replace methods
-  * Add instance variables
-* Objects:
-  * Class or class name for object
-  * Read and write properties
-  * Read and write instance variables
-  * Call methods
-  * Call superclass methods
-* Protocols:
-  * Check conformance
-  * Read property metadata
-* Blocks:
-  * Define and invoke blocks with captured values
-  * Pass blocks to C APIs which can then invoke your Zig code
-* Autorelease pools
+  * Classes:
+    - Find classes
+    - Read property metadata
+    - Call methods
+    - Create subclasses
+    - Add methods
+    - Replace methods
+    - Add instance variables
+  * Objects:
+    - Class or class name for object
+    - Read and write properties
+    - Read and write instance variables
+    - Call methods
+    - Call superclass methods
+  * Protocols:
+    - Check conformance
+    - Read property metadata
+  * Blocks:
+    - Define and invoke blocks with captured values
+    - Pass blocks to C APIs which can then invoke your Zig code
+  * Autorelease pools
 
 There is still a bunch of the runtime API that isn't supported. It wouldn't
 be hard work to add it, I just haven't needed it. For example: object

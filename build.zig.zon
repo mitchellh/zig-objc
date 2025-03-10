@@ -1,5 +1,6 @@
 .{
-    .name = "zig-objc",
+    .name = .zig_objc,
+    .fingerprint = 0x8a91772b0cad377e,
     .version = "0.0.0",
     .paths = .{
         "src/",

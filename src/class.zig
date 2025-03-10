@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const std_cc = std.builtin.CallingConvention;
 const cpkg = @import("c.zig");
 const c = cpkg.c;
 const boolResult = cpkg.boolResult;
@@ -57,8 +58,8 @@ pub const Class = struct {
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn replaceMethod(self: Class, name: [:0]const u8, imp: anytype) void {
-        const fn_info = @typeInfo(@TypeOf(imp)).Fn;
-        assert(fn_info.calling_convention == .C);
+        const fn_info = @typeInfo(@TypeOf(imp)).@"fn";
+        assert(@intFromEnum(fn_info.calling_convention) == @intFromEnum(std_cc.c));
         assert(fn_info.is_var_args == false);
         assert(fn_info.params.len >= 2);
         assert(fn_info.params[0].type == c.id);
@@ -71,8 +72,8 @@ pub const Class = struct {
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) !bool {
         const Fn = @TypeOf(imp);
-        const fn_info = @typeInfo(Fn).Fn;
-        assert(fn_info.calling_convention == .C);
+        const fn_info = @typeInfo(Fn).@"fn";
+        assert(@intFromEnum(fn_info.calling_convention) == @intFromEnum(std_cc.c));
         assert(fn_info.is_var_args == false);
         assert(fn_info.params.len >= 2);
         assert(fn_info.params[0].type == c.id);
@@ -208,7 +209,7 @@ test "addMethod" {
         const My_Class = allocateClassPair(objc.getClass("NSObject").?, "my_class").?;
         defer registerClassPair(My_Class);
         std.debug.assert(try My_Class.addMethod("my_addition", struct {
-            fn imp(target: objc.c.id, sel: objc.c.SEL, a: i32, b: i32) callconv(.C) i32 {
+            fn imp(target: c.id, sel: c.SEL, a: i32, b: i32) callconv(.c) i32 {
                 _ = sel;
                 _ = target;
                 return a + b;

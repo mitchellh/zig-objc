@@ -3,6 +3,7 @@ const objc = @import("main.zig");
 const c = @import("c.zig").c;
 const assert = std.debug.assert;
 const testing = std.testing;
+const std_cc = std.builtin.CallingConvention;
 
 /// how much space do we need to encode this type?
 fn comptimeN(comptime T: type) usize {
@@ -83,14 +84,14 @@ pub const Encoding = union(enum) {
             c.Class, objc.Class => .class,
             c.id, objc.Object => .object,
             else => switch (@typeInfo(T)) {
-                .Array => |arr| .{ .array = .{ .len = arr.len, .arr_type = arr.child } },
-                .Struct => .{ .structure = .{ .struct_type = T, .show_type_spec = true } },
-                .Union => .{ .@"union" = .{
+                .array => |arr| .{ .array = .{ .len = arr.len, .arr_type = arr.child } },
+                .@"struct" => .{ .structure = .{ .struct_type = T, .show_type_spec = true } },
+                .@"union" => .{ .@"union" = .{
                     .union_type = T,
                     .show_type_spec = true,
                 } },
-                .Pointer => |ptr| .{ .pointer = .{ .ptr_type = T, .size = ptr.size } },
-                .Fn => |fn_info| .{ .function = fn_info },
+                .pointer => |ptr| .{ .pointer = .{ .ptr_type = T, .size = ptr.size } },
+                .@"fn" => |fn_info| .{ .function = fn_info },
                 else => @compileError("unsupported type: " ++ @typeName(T)),
             },
         };
@@ -129,7 +130,7 @@ pub const Encoding = union(enum) {
             },
             .structure => |s| {
                 const struct_info = @typeInfo(s.struct_type);
-                assert(struct_info.Struct.layout == .@"extern");
+                assert(struct_info.@"struct".layout == .@"extern");
 
                 // Strips the fully qualified type name to leave just the
                 // type name. Used in naming the Struct in an encoding.
@@ -141,7 +142,7 @@ pub const Encoding = union(enum) {
                 // of the struct (determined by levels of pointer indirection)
                 if (s.show_type_spec) {
                     try writer.writeAll("=");
-                    inline for (struct_info.Struct.fields) |field| {
+                    inline for (struct_info.@"struct".fields) |field| {
                         const field_encode = init(field.type);
                         try field_encode.format(fmt, options, writer);
                     }
@@ -151,7 +152,7 @@ pub const Encoding = union(enum) {
             },
             .@"union" => |u| {
                 const union_info = @typeInfo(u.union_type);
-                assert(union_info.Union.layout == .@"extern");
+                assert(union_info.@"union".layout == .@"extern");
 
                 // Strips the fully qualified type name to leave just the
                 // type name. Used in naming the Union in an encoding
@@ -163,7 +164,7 @@ pub const Encoding = union(enum) {
                 // of the Union (determined by levels of pointer indirection)
                 if (u.show_type_spec) {
                     try writer.writeAll("=");
-                    inline for (union_info.Union.fields) |field| {
+                    inline for (union_info.@"union".fields) |field| {
                         const field_encode = init(field.type);
                         try field_encode.format(fmt, options, writer);
                     }
@@ -174,7 +175,7 @@ pub const Encoding = union(enum) {
             .bitfield => |b| try writer.print("b{}", .{b}), // not sure if needed from Zig -> Obj-C
             .pointer => |p| {
                 switch (p.size) {
-                    .One => {
+                    .one => {
                         // get the pointer info (count of levels of direction
                         // and the underlying type)
                         const pointer_info = indirectionCountAndType(p.ptr_type);
@@ -206,7 +207,7 @@ pub const Encoding = union(enum) {
                 }
             },
             .function => |fn_info| {
-                assert(fn_info.calling_convention == .C);
+                assert(@intFromEnum(fn_info.calling_convention) == @intFromEnum(std_cc.c));
 
                 // Return type is first in a method encoding
                 const ret_type_enc = init(fn_info.return_type.?);
@@ -230,8 +231,8 @@ fn indirectionCountAndType(comptime T: type) struct {
 } {
     var WalkType = T;
     var count: usize = 0;
-    while (@typeInfo(WalkType) == .Pointer) : (count += 1) {
-        WalkType = @typeInfo(WalkType).Pointer.child;
+    while (@typeInfo(WalkType) == .pointer) : (count += 1) {
+        WalkType = @typeInfo(WalkType).pointer.child;
     }
 
     return .{ .child = WalkType, .indirection_levels = count };

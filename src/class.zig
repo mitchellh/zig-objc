@@ -57,8 +57,8 @@ pub const Class = struct {
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn replaceMethod(self: Class, name: [:0]const u8, imp: anytype) void {
-        const fn_info = @typeInfo(@TypeOf(imp)).Fn;
-        assert(fn_info.calling_convention == .C);
+        const fn_info = @typeInfo(@TypeOf(imp)).@"fn";
+        assert(std.meta.eql(fn_info.calling_convention, std.builtin.CallingConvention.c));
         assert(fn_info.is_var_args == false);
         assert(fn_info.params.len >= 2);
         assert(fn_info.params[0].type == c.id);
@@ -71,8 +71,8 @@ pub const Class = struct {
     // whose first two arguments are a `c.id` and a `c.SEL`.
     pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) !bool {
         const Fn = @TypeOf(imp);
-        const fn_info = @typeInfo(Fn).Fn;
-        assert(fn_info.calling_convention == .C);
+        const fn_info = @typeInfo(Fn).@"fn";
+        assert(std.meta.eql(fn_info.calling_convention, std.builtin.CallingConvention.c));
         assert(fn_info.is_var_args == false);
         assert(fn_info.params.len >= 2);
         assert(fn_info.params[0].type == c.id);

@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) !void {
     });
     tests.linkSystemLibrary("objc");
     tests.linkFramework("Foundation");
-    try addAppleSDK(b, &tests.root_module);
+    try addAppleSDK(b, tests.root_module);
     b.installArtifact(tests);
 
     const test_step = b.step("test", "Run tests");

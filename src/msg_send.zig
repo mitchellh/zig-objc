@@ -97,7 +97,7 @@ pub fn MsgSend(comptime T: type) type {
                     => if (super) &c.objc_msgSendSuper else &c.objc_msgSend,
 
                     .optional => |opt| opt: {
-                        assert(@typeInfo(opt.child) == .Pointer);
+                        assert(@typeInfo(opt.child) == .pointer);
                         break :opt if (super) &c.objc_msgSendSuper else &c.objc_msgSend;
                     },
 

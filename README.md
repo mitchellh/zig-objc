@@ -79,7 +79,7 @@ Add this repository to your `build.zig.zon` file. Then:
 pub fn build(b: *std.build.Builder) !void {
   // ... other stuff
 
-  exe.root_module.addImport("obcj", b.dependency("zig_objc", .{
+  exe.root_module.addImport("objc", b.dependency("zig_objc", .{
     .target = target,
     .optimize = optimize,
   }).module("objc"));

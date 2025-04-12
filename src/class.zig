@@ -15,9 +15,9 @@ pub const Class = struct {
     pub const msgSendSuper = msg_send.msgSendSuper;
 
     // Returns a property with a given name of a given class.
-    pub fn getProperty(self: Class, name: [:0]const u8) ?objc.Property {
+    pub fn getProperty(self: Class, name: [*:0]const u8) ?objc.Property {
         return objc.Property{
-            .value = c.class_getProperty(self.value, name.ptr) orelse return null,
+            .value = c.class_getProperty(self.value, name) orelse return null,
         };
     }
 
@@ -56,7 +56,7 @@ pub const Class = struct {
     // currently only allows for overriding methods previously defined, e.g. by a superclass.
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
-    pub fn replaceMethod(self: Class, name: [:0]const u8, imp: anytype) void {
+    pub fn replaceMethod(self: Class, name: [*:0]const u8, imp: anytype) void {
         const fn_info = @typeInfo(@TypeOf(imp)).@"fn";
         assert(std.meta.eql(fn_info.calling_convention, std.builtin.CallingConvention.c));
         assert(fn_info.is_var_args == false);
@@ -69,7 +69,7 @@ pub const Class = struct {
     /// allows adding new methods; returns true on success.
     // imp should be a function with C calling convention
     // whose first two arguments are a `c.id` and a `c.SEL`.
-    pub fn addMethod(self: Class, name: [:0]const u8, imp: anytype) !bool {
+    pub fn addMethod(self: Class, name: [*:0]const u8, imp: anytype) !bool {
         const Fn = @TypeOf(imp);
         const fn_info = @typeInfo(Fn).@"fn";
         assert(std.meta.eql(fn_info.calling_convention, std.builtin.CallingConvention.c));
@@ -88,26 +88,26 @@ pub const Class = struct {
 
     // only call this function between allocateClassPair and registerClassPair
     // this adds an Ivar of type `id`.
-    pub fn addIvar(self: Class, name: [:0]const u8) bool {
+    pub fn addIvar(self: Class, name: [*:0]const u8) bool {
         // The return type is i8 when we're cross compiling, unsure why.
         const result = c.class_addIvar(self.value, name, @sizeOf(c.id), @alignOf(c.id), "@");
         return boolResult(@TypeOf(c.class_addIvar), result);
     }
 };
 
-pub fn getClass(name: [:0]const u8) ?Class {
-    return .{ .value = c.objc_getClass(name.ptr) orelse return null };
+pub fn getClass(name: [*:0]const u8) ?Class {
+    return .{ .value = c.objc_getClass(name) orelse return null };
 }
 
-pub fn getMetaClass(name: [:0]const u8) ?Class {
+pub fn getMetaClass(name: [*:0]const u8) ?Class {
     return .{ .value = c.objc_getMetaClass(name) orelse return null };
 }
 
 // begin by calling this function, then call registerClassPair on the result when you are finished
-pub fn allocateClassPair(superclass: ?Class, name: [:0]const u8) ?Class {
+pub fn allocateClassPair(superclass: ?Class, name: [*:0]const u8) ?Class {
     return .{ .value = c.objc_allocateClassPair(
         if (superclass) |cls| cls.value else null,
-        name.ptr,
+        name,
         0,
     ) orelse return null };
 }

@@ -83,12 +83,18 @@ pub const Encoding = union(enum) {
             c.Class, objc.Class => .class,
             c.id, objc.Object => .object,
             else => switch (@typeInfo(T)) {
+                .@"opaque" => .void,
+                .@"enum" => |m| .init(m.tag_type),
                 .array => |arr| .{ .array = .{ .len = arr.len, .arr_type = arr.child } },
                 .@"struct" => .{ .structure = .{ .struct_type = T, .show_type_spec = true } },
                 .@"union" => .{ .@"union" = .{
                     .union_type = T,
                     .show_type_spec = true,
                 } },
+                .optional => |m| switch (@typeInfo(m.child)) {
+                    .pointer => |ptr| .{ .pointer = .{ .ptr_type = m.child, .size = ptr.size } },
+                    else => @compileError("unsupported non-pointer optional type: " ++ @typeName(T)),
+                },
                 .pointer => |ptr| .{ .pointer = .{ .ptr_type = T, .size = ptr.size } },
                 .@"fn" => |fn_info| .{ .function = fn_info },
                 else => @compileError("unsupported type: " ++ @typeName(T)),
@@ -308,6 +314,15 @@ test "**u8 to Encoding.pointer encoding" {
     try encodingMatchesType(**u8, "^^C");
 }
 
+test "?*u8 to Encoding.pointer encoding" {
+    try encodingMatchesType(?*u8, "^C");
+}
+
+test "Enum(c_uint) to Encoding.uint encoding" {
+    const TestEnum = enum(c_uint) {};
+    try encodingMatchesType(TestEnum, "I");
+}
+
 test "*TestStruct to Encoding.pointer encoding" {
     const TestStruct = extern struct {
         float: f32,
@@ -334,6 +349,16 @@ test "*TestStruct with 2 level indirection NestedStruct to Encoding.pointer enco
         nested: **NestedStruct,
     };
     try encodingMatchesType(*TestStruct, "^{TestStruct=fC^^{NestedStruct}}");
+}
+
+test "*TestOpaque to Encoding.pointer encoding" {
+    const TestOpaque = opaque {};
+    try encodingMatchesType(*TestOpaque, "^v");
+}
+
+test "?*TestOpaque to Encoding.pointer encoding" {
+    const TestOpaque = opaque {};
+    try encodingMatchesType(?*TestOpaque, "^v");
 }
 
 test "Union to Encoding.union encoding" {

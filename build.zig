@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) !void {
     });
     tests.linkSystemLibrary("objc");
     tests.linkFramework("Foundation");
+    tests.linkFramework("AppKit"); // Required by 'tagged pointer' test.
     try addAppleSDK(b, tests.root_module);
     b.installArtifact(tests);
 

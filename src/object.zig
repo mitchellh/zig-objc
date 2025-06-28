@@ -164,3 +164,55 @@ test "retain object" {
 
     obj.msgSend(void, objc.sel("dealloc"), .{});
 }
+
+test "tagged pointer" {
+    const testing = std.testing;
+
+    // We can't force Objective-C to provide us with an unaligned tagged
+    // pointer, so we try several times using different classes. We use
+    // different classes instead of values, since pointers from the same
+    // class will have the same alignment during a single execution (aarch64).
+    const obj = blk: {
+        var Class = objc.getClass("NSNumber").?;
+        var sel = objc.Sel.registerName("numberWithChar:");
+        var obj = Class.msgSend(objc.Object, sel, .{@as(u8, @intCast(5))});
+
+        // We're only interested in an unaligned pointer.
+        if (!std.mem.isAligned(@intFromPtr(obj.value), @alignOf(usize))) break :blk obj;
+
+        Class = objc.getClass("NSString").?;
+        sel = objc.Sel.registerName("stringWithUTF8String:");
+        obj = Class.msgSend(objc.Object, sel, .{"foo"});
+        if (!std.mem.isAligned(@intFromPtr(obj.value), @alignOf(usize))) break :blk obj;
+
+        Class = objc.getClass("NSDate").?;
+        sel = objc.Sel.registerName("date");
+        obj = Class.msgSend(objc.Object, sel, .{});
+        if (!std.mem.isAligned(@intFromPtr(obj.value), @alignOf(usize))) break :blk obj;
+
+        const colors = [_][:0]const u8{
+            "clearColor",    "blackColor",  "blueColor",  "brownColor",     "cyanColor",
+            "darkGrayColor", "grayColor",   "greenColor", "lightGrayColor", "magentaColor",
+            "orangeColor",   "purpleColor", "redColor",   "whiteColor",     "yellowColor",
+        };
+
+        Class = objc.getClass("NSColor").?;
+        for (colors) |color| {
+            sel = objc.Sel.registerName(color);
+            obj = Class.msgSend(objc.Object, sel, .{});
+            if (!std.mem.isAligned(@intFromPtr(obj.value), @alignOf(usize))) break :blk obj;
+        }
+
+        // In the unlikely event that we don't find an unaligned tagged pointer.
+        std.log.warn("skipped 'tagged pointer' test because we couldn't find an unaligned tagged pointer", .{});
+        return error.SkipZigTest;
+    };
+
+    // A tagged object is not allocated on the heap and cannot be retained.
+    try testing.expect(retainCount(obj) != 1);
+
+    // `Object.fromId` must work even when the pointer is unaligned.
+    const obj_ptr = @intFromPtr(obj.value);
+    try testing.expect(!std.mem.isAligned(obj_ptr, @alignOf(usize)));
+    try testing.expect(std.meta.eql(obj, Object.fromId(obj.value)));
+}

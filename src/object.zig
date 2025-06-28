@@ -16,7 +16,21 @@ pub const Object = struct {
     /// Convert a raw "id" into an Object. id must fit the size of the
     /// normal C "id" type (i.e. a `usize`).
     pub fn fromId(id: anytype) Object {
-        return .{ .value = @ptrCast(@alignCast(id)) };
+        if (@sizeOf(@TypeOf(id)) != @sizeOf(c.id)) {
+            @compileError("invalid id type");
+        }
+
+        // Some pointers in Objective-C are "tagged pointers", which
+        // may be used for small objects and literals (NSNumber, NSString).
+        // It's an internal implementation detail that replaces heap
+        // allocation with direct encoding within the pointer itself.
+        // This may result in UNALIGNED POINTERS!
+        const ptr: c.id = blk: {
+            @setRuntimeSafety(false);
+            break :blk @ptrCast(@alignCast(id));
+        };
+
+        return .{ .value = ptr };
     }
 
     /// Returns the class of an object.

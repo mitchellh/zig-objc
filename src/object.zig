@@ -48,7 +48,7 @@ pub const Object = struct {
     /// Set a property. This is a helper around getProperty and is
     /// strictly less performant than doing it manually. Consider doing
     /// this manually if performance is critical.
-    pub fn setProperty(self: Object, comptime n: [:0]const u8, v: anytype) void {
+    pub fn setProperty(self: Object, comptime n: [*:0]const u8, v: anytype) void {
         const Class = self.getClass().?;
         const setter = setter: {
             // See getProperty for why we do this.
@@ -73,7 +73,7 @@ pub const Object = struct {
     /// Get a property. This is a helper around Class.getProperty and is
     /// strictly less performant than doing it manually. Consider doing
     /// this manually if performance is critical.
-    pub fn getProperty(self: Object, comptime T: type, comptime n: [:0]const u8) T {
+    pub fn getProperty(self: Object, comptime T: type, comptime n: [*:0]const u8) T {
         const Class = self.getClass().?;
         const getter = getter: {
             // Sometimes a property is not a property because it has been
@@ -105,12 +105,12 @@ pub const Object = struct {
         return c.object_isClass(self.value) == 1;
     }
 
-    pub fn getInstanceVariable(self: Object, name: [:0]const u8) Object {
+    pub fn getInstanceVariable(self: Object, name: [*:0]const u8) Object {
         const ivar = c.object_getInstanceVariable(self.value, name, null);
         return fromId(c.object_getIvar(self.value, ivar));
     }
 
-    pub fn setInstanceVariable(self: Object, name: [:0]const u8, val: Object) void {
+    pub fn setInstanceVariable(self: Object, name: [*:0]const u8, val: Object) void {
         const ivar = c.object_getInstanceVariable(self.value, name, null);
         c.object_setIvar(self.value, ivar, val.value);
     }

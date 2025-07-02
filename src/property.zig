@@ -11,9 +11,9 @@ pub const Property = extern struct {
     }
 
     /// Returns the value of a property attribute given the attribute name.
-    pub fn copyAttributeValue(self: Property, attr: [:0]const u8) ?[:0]u8 {
+    pub fn copyAttributeValue(self: Property, attr: [*:0]const u8) ?[:0]u8 {
         return std.mem.sliceTo(
-            c.property_copyAttributeValue(self.value, attr.ptr) orelse return null,
+            c.property_copyAttributeValue(self.value, attr) orelse return null,
             0,
         );
     }

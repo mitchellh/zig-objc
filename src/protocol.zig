@@ -19,7 +19,7 @@ pub const Protocol = extern struct {
 
     pub fn getProperty(
         self: Protocol,
-        name: [:0]const u8,
+        name: [*:0]const u8,
         is_required: bool,
         is_instance: bool,
     ) ?objc.Property {
@@ -39,6 +39,6 @@ pub const Protocol = extern struct {
     }
 };
 
-pub fn getProtocol(name: [:0]const u8) ?Protocol {
+pub fn getProtocol(name: [*:0]const u8) ?Protocol {
     return .{ .value = c.objc_getProtocol(name) orelse return null };
 }

@@ -3,13 +3,22 @@ pub const c = @cImport({
     @cInclude("objc/message.h");
 });
 
-/// This is a funky helper to help with the fact that some macOS
-/// SDKs have an i8 return value for bools and some have stdbool.
-pub fn boolResult(comptime Fn: type, result: anytype) bool {
-    const fn_info = @typeInfo(Fn).@"fn";
-    return switch (fn_info.return_type.?) {
+/// On some targets, Objective-C uses `i8` instead of `bool`.
+/// This helper casts the target value type to `bool`.
+pub fn boolResult(result: c.BOOL) bool {
+    return switch (c.BOOL) {
         bool => result,
         i8 => result == 1,
-        else => @compileError("unhandled class_addIvar return type"),
+        else => @compileError("unexpected boolean type"),
+    };
+}
+
+/// On some targets, Objective-C uses `i8` instead of `bool`.
+/// This helper casts a `bool` value to the target value type.
+pub fn boolParam(param: bool) c.BOOL {
+    return switch (c.BOOL) {
+        bool => param,
+        i8 => @intFromBool(param),
+        else => @compileError("unexpected boolean type"),
     };
 }

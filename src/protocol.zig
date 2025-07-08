@@ -1,16 +1,19 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const cpkg = @import("c.zig");
+const c = cpkg.c;
+const boolParam = cpkg.boolParam;
+const boolResult = cpkg.boolResult;
 const objc = @import("main.zig");
 
 pub const Protocol = extern struct {
     value: *c.Protocol,
 
     pub fn conformsToProtocol(self: Protocol, other: Protocol) bool {
-        return c.protocol_conformsToProtocol(self.value, other.value) == 1;
+        return boolResult(c.protocol_conformsToProtocol(self.value, other.value));
     }
 
     pub fn isEqual(self: Protocol, other: Protocol) bool {
-        return c.protocol_isEqual(self.value, other.value) == 1;
+        return boolResult(c.protocol_isEqual(self.value, other.value));
     }
 
     pub fn getName(self: Protocol) [:0]const u8 {
@@ -23,13 +26,11 @@ pub const Protocol = extern struct {
         is_required: bool,
         is_instance: bool,
     ) ?objc.Property {
-        const isRequired: u8 = if (is_required) 1 else 0;
-        const isInstance: u8 = if (is_instance) 1 else 0;
         return .{ .value = c.protocol_getProperty(
             self.value,
             name,
-            isRequired,
-            isInstance,
+            boolParam(is_required),
+            boolParam(is_instance),
         ) orelse return null };
     }
 

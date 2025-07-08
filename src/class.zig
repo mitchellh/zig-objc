@@ -38,7 +38,7 @@ pub const Class = struct {
     }
 
     pub fn isMetaClass(self: Class) bool {
-        return c.class_isMetaClass(self.value) == 1;
+        return boolResult(c.class_isMetaClass(self.value));
     }
 
     pub fn getInstanceSize(self: Class) usize {
@@ -46,11 +46,11 @@ pub const Class = struct {
     }
 
     pub fn respondsToSelector(self: Class, sel: objc.Sel) bool {
-        return c.class_respondsToSelector(self.value, sel.value) == 1;
+        return boolResult(c.class_respondsToSelector(self.value, sel.value));
     }
 
     pub fn conformsToProtocol(self: Class, protocol: objc.Protocol) bool {
-        return c.class_conformsToProtocol(self.value, &protocol.value) == 1;
+        return boolResult(c.class_conformsToProtocol(self.value, &protocol.value));
     }
 
     // currently only allows for overriding methods previously defined, e.g. by a superclass.
@@ -78,7 +78,7 @@ pub const Class = struct {
         assert(fn_info.params[0].type == c.id);
         assert(fn_info.params[1].type == c.SEL);
         const encoding = comptime objc.comptimeEncode(Fn);
-        return boolResult(@TypeOf(c.class_addMethod), c.class_addMethod(
+        return boolResult(c.class_addMethod(
             self.value,
             objc.sel(name).value,
             @ptrCast(&imp),
@@ -91,7 +91,7 @@ pub const Class = struct {
     pub fn addIvar(self: Class, name: [:0]const u8) bool {
         // The return type is i8 when we're cross compiling, unsure why.
         const result = c.class_addIvar(self.value, name, @sizeOf(c.id), @alignOf(c.id), "@");
-        return boolResult(@TypeOf(c.class_addIvar), result);
+        return boolResult(result);
     }
 };
 

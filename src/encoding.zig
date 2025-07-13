@@ -86,7 +86,10 @@ pub const Encoding = union(enum) {
                 .@"opaque" => .void,
                 .@"enum" => |m| .init(m.tag_type),
                 .array => |arr| .{ .array = .{ .len = arr.len, .arr_type = arr.child } },
-                .@"struct" => .{ .structure = .{ .struct_type = T, .show_type_spec = true } },
+                .@"struct" => |m| switch (m.layout) {
+                    .@"packed" => .init(m.backing_integer.?),
+                    else => .{ .structure = .{ .struct_type = T, .show_type_spec = true } },
+                },
                 .@"union" => .{ .@"union" = .{
                     .union_type = T,
                     .show_type_spec = true,
@@ -321,6 +324,13 @@ test "?*u8 to Encoding.pointer encoding" {
 test "Enum(c_uint) to Encoding.uint encoding" {
     const TestEnum = enum(c_uint) {};
     try encodingMatchesType(TestEnum, "I");
+}
+
+test "TestPackedStruct to Encoding.uint encoding" {
+    const TestPackedStruct = packed struct(u32) {
+        _: u32,
+    };
+    try encodingMatchesType(TestPackedStruct, "I");
 }
 
 test "*TestStruct to Encoding.pointer encoding" {

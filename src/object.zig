@@ -1,5 +1,7 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const cpkg = @import("c.zig");
+const c = cpkg.c;
+const boolResult = cpkg.boolResult;
 const objc = @import("main.zig");
 const MsgSend = @import("msg_send.zig").MsgSend;
 const Iterator = @import("iterator.zig").Iterator;
@@ -102,7 +104,7 @@ pub const Object = struct {
     }
 
     pub fn isClass(self: Object) bool {
-        return c.object_isClass(self.value) == 1;
+        return boolResult(c.object_isClass(self.value));
     }
 
     pub fn getInstanceVariable(self: Object, name: [:0]const u8) Object {

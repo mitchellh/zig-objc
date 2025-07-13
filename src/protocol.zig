@@ -43,3 +43,18 @@ pub const Protocol = extern struct {
 pub fn getProtocol(name: [:0]const u8) ?Protocol {
     return .{ .value = c.objc_getProtocol(name) orelse return null };
 }
+
+test Protocol {
+    const testing = std.testing;
+    const fs_proto = getProtocol("NSFileManagerDelegate") orelse return error.ProtocolNotFound;
+    try testing.expectEqualStrings("NSFileManagerDelegate", fs_proto.getName());
+
+    const obj_proto = getProtocol("NSObject") orelse return error.ProtocolNotFound;
+    try testing.expect(fs_proto.conformsToProtocol(obj_proto));
+
+    const url_proto = getProtocol("NSURLSessionDelegate") orelse return error.ProtocolNotFound;
+    try testing.expect(!fs_proto.conformsToProtocol(url_proto));
+
+    const hash_prop = obj_proto.getProperty("hash", true, true) orelse return error.ProtocolPropertyNotFound;
+    try testing.expectEqualStrings("hash", hash_prop.getName());
+}

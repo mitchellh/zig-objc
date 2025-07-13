@@ -4,7 +4,7 @@ pub const c = @cImport({
 });
 
 /// On some targets, Objective-C uses `i8` instead of `bool`.
-/// This helper casts the target value type to `bool`.
+/// This helper casts a target value type to `bool`.
 pub fn boolResult(result: c.BOOL) bool {
     return switch (c.BOOL) {
         bool => result,

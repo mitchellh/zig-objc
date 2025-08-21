@@ -10,9 +10,10 @@ fn comptimeN(comptime T: type) usize {
         const encoding = objc.Encoding.init(T);
 
         // Figure out how much space we need
-        var counting = std.io.countingWriter(std.io.null_writer);
-        try std.fmt.format(counting.writer(), "{}", .{encoding});
-        return counting.bytes_written;
+        var buf: [64]u8 = undefined;
+        var discarding = std.Io.Writer.Discarding.init(&buf);
+        try discarding.writer.print("{f}", .{encoding});
+        return discarding.fullCount();
     }
 }
 
@@ -24,7 +25,7 @@ pub fn comptimeEncode(comptime T: type) [comptimeN(T):0]u8 {
         // Build our final signature
         var buf: [comptimeN(T) + 1]u8 = undefined;
         var fbs = std.io.fixedBufferStream(buf[0 .. buf.len - 1]);
-        try std.fmt.format(fbs.writer(), "{}", .{encoding});
+        try fbs.writer().print("{f}", .{encoding});
         buf[buf.len - 1] = 0;
 
         return buf[0 .. buf.len - 1 :0].*;
@@ -107,8 +108,6 @@ pub const Encoding = union(enum) {
 
     pub fn format(
         comptime self: Encoding,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
         writer: anytype,
     ) !void {
         switch (self) {
@@ -133,7 +132,7 @@ pub const Encoding = union(enum) {
             .array => |a| {
                 try writer.print("[{}", .{a.len});
                 const encode_type = init(a.arr_type);
-                try encode_type.format(fmt, options, writer);
+                try encode_type.format(writer);
                 try writer.writeAll("]");
             },
             .structure => |s| {
@@ -152,7 +151,7 @@ pub const Encoding = union(enum) {
                     try writer.writeAll("=");
                     inline for (struct_info.@"struct".fields) |field| {
                         const field_encode = init(field.type);
-                        try field_encode.format(fmt, options, writer);
+                        try field_encode.format(writer);
                     }
                 }
 
@@ -174,7 +173,7 @@ pub const Encoding = union(enum) {
                     try writer.writeAll("=");
                     inline for (union_info.@"union".fields) |field| {
                         const field_encode = init(field.type);
-                        try field_encode.format(fmt, options, writer);
+                        try field_encode.format(writer);
                     }
                 }
 
@@ -209,7 +208,7 @@ pub const Encoding = union(enum) {
                         }
 
                         // call this format function again, this time with the child type encoding
-                        try encoding.format(fmt, options, writer);
+                        try encoding.format(writer);
                     },
                     else => @compileError("Pointer size not supported for encoding"),
                 }
@@ -219,10 +218,10 @@ pub const Encoding = union(enum) {
 
                 // Return type is first in a method encoding
                 const ret_type_enc = init(fn_info.return_type.?);
-                try ret_type_enc.format(fmt, options, writer);
+                try ret_type_enc.format(writer);
                 inline for (fn_info.params) |param| {
                     const param_enc = init(param.type.?);
-                    try param_enc.format(fmt, options, writer);
+                    try param_enc.format(writer);
                 }
             },
             .unknown => {},
@@ -249,7 +248,7 @@ fn indirectionCountAndType(comptime T: type) struct {
 fn encodingMatchesType(comptime T: type, expected_encoding: []const u8) !void {
     var buf: [200]u8 = undefined;
     const enc = Encoding.init(T);
-    const enc_string = try std.fmt.bufPrint(&buf, "{s}", .{enc});
+    const enc_string = try std.fmt.bufPrint(&buf, "{f}", .{enc});
     try testing.expectEqualStrings(expected_encoding, enc_string);
 }
 

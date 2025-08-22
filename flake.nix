@@ -35,7 +35,7 @@
       in rec {
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            zigpkgs."0.14.0"
+            zigpkgs."0.15.1"
           ];
         };
 

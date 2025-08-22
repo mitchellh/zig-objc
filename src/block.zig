@@ -120,7 +120,7 @@ pub fn Block(
             _Block_release(@ptrCast(@alignCast(ctx)));
         }
 
-        fn descCopyHelper(src: *anyopaque, dst: *anyopaque) callconv(.C) void {
+        fn descCopyHelper(src: *anyopaque, dst: *anyopaque) callconv(.c) void {
             const real_src: *Context = @ptrCast(@alignCast(src));
             const real_dst: *Context = @ptrCast(@alignCast(dst));
             inline for (captures_info.fields) |field| {
@@ -134,7 +134,7 @@ pub fn Block(
             }
         }
 
-        fn descDisposeHelper(src: *anyopaque) callconv(.C) void {
+        fn descDisposeHelper(src: *anyopaque) callconv(.c) void {
             const real_src: *Context = @ptrCast(@alignCast(src));
             inline for (captures_info.fields) |field| {
                 if (field.type == objc.c.id) {
@@ -158,7 +158,7 @@ pub fn Block(
 
             return @Type(.{
                 .@"fn" = .{
-                    .calling_convention = .C,
+                    .calling_convention = .c,
                     .is_generic = false,
                     .is_var_args = false,
                     .return_type = Return,
@@ -257,8 +257,8 @@ extern "C" fn _Block_object_dispose(src: *const anyopaque, flag: BlockFieldFlags
 const Descriptor = extern struct {
     reserved: c_ulong = 0,
     size: c_ulong,
-    copy_helper: *const fn (dst: *anyopaque, src: *anyopaque) callconv(.C) void,
-    dispose_helper: *const fn (src: *anyopaque) callconv(.C) void,
+    copy_helper: *const fn (dst: *anyopaque, src: *anyopaque) callconv(.c) void,
+    dispose_helper: *const fn (src: *anyopaque) callconv(.c) void,
     signature: ?[*:0]const u8,
 };
 
@@ -287,7 +287,7 @@ test "Block" {
     };
 
     var block: AddBlock.Context = AddBlock.init(captures, (struct {
-        fn addFn(block: *const AddBlock.Context) callconv(.C) i32 {
+        fn addFn(block: *const AddBlock.Context) callconv(.c) i32 {
             return block.x + block.y;
         }
     }).addFn);
@@ -317,7 +317,7 @@ test "Block copy objc id" {
     var block = TestBlock.init(.{
         .id = obj.value,
     }, (struct {
-        fn addFn(block: *const TestBlock.Context) callconv(.C) i32 {
+        fn addFn(block: *const TestBlock.Context) callconv(.c) i32 {
             _ = block;
             return 0;
         }

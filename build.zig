@@ -20,9 +20,11 @@ pub fn build(b: *std.Build) !void {
 
     const tests = b.addTest(.{
         .name = "objc-test",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     tests.linkSystemLibrary("objc");
     tests.linkFramework("Foundation");
@@ -66,7 +68,7 @@ pub fn addAppleSDK(b: *std.Build, m: *std.Build.Module) !void {
     if (!gop.found_existing) {
         gop.value_ptr.* = std.zig.system.darwin.getSdk(
             b.allocator,
-            m.resolved_target.?.result,
+            &m.resolved_target.?.result,
         );
     }
 

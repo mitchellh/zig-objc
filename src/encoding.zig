@@ -24,7 +24,7 @@ pub fn comptimeEncode(comptime T: type) [comptimeN(T):0]u8 {
         // Build our final signature
         var buf: [comptimeN(T) + 1]u8 = undefined;
         var fbs: std.io.Writer = .fixed(buf[0 .. buf.len - 1]);
-        fbs.writer.print("{f}", .{encoding}) catch unreachable;
+        fbs.print("{f}", .{encoding}) catch unreachable;
         buf[buf.len - 1] = 0;
 
         return buf[0 .. buf.len - 1 :0].*;
@@ -247,7 +247,7 @@ fn indirectionCountAndType(comptime T: type) struct {
 fn encodingMatchesType(comptime T: type, expected_encoding: []const u8) !void {
     var buf: [200]u8 = undefined;
     const enc = Encoding.init(T);
-    const enc_string = try std.fmt.bufPrint(&buf, "{s}", .{enc});
+    const enc_string = try std.fmt.bufPrint(&buf, "{f}", .{enc});
     try testing.expectEqualStrings(expected_encoding, enc_string);
 }
 

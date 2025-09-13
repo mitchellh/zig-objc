@@ -167,7 +167,7 @@ test "allocatecClassPair and replaceMethod" {
     const NSObject = getClass("NSObject").?;
     var my_object = allocateClassPair(NSObject, "my_object").?;
     my_object.replaceMethod("hash", struct {
-        fn inner(target: c.id, sel: c.SEL) callconv(.C) u64 {
+        fn inner(target: c.id, sel: c.SEL) callconv(.c) u64 {
             _ = sel;
             _ = target;
             return 69;
@@ -208,7 +208,7 @@ test "addMethod" {
         const My_Class = allocateClassPair(objc.getClass("NSObject").?, "my_class").?;
         defer registerClassPair(My_Class);
         std.debug.assert(My_Class.addMethod("my_addition", struct {
-            fn imp(target: objc.c.id, sel: objc.c.SEL, a: i32, b: i32) callconv(.C) i32 {
+            fn imp(target: objc.c.id, sel: objc.c.SEL, a: i32, b: i32) callconv(.c) i32 {
                 _ = sel;
                 _ = target;
                 return a + b;

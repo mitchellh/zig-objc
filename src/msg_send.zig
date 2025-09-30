@@ -65,7 +65,7 @@ pub fn MsgSend(comptime T: type) type {
             const msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
             var super: c.objc_super = .{
                 .receiver = target.value,
-                .super_class = superclass.value,
+                .class = superclass.value,
             };
             const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ args);
 
@@ -78,7 +78,7 @@ pub fn MsgSend(comptime T: type) type {
         fn msgSendPtr(
             comptime Return: type,
             comptime super: bool,
-        ) *const fn () callconv(.C) void {
+        ) *const fn () callconv(.c) void {
             // See objc/message.h. The high-level is that depending on the
             // target architecture and return type, we must use a different
             // objc_msgSend function.
@@ -204,7 +204,7 @@ fn MsgSendFn(
 
     return @Type(.{
         .@"fn" = .{
-            .calling_convention = .C,
+            .calling_convention = .c,
             .is_generic = false,
             .is_var_args = false,
             .return_type = Return,
@@ -218,8 +218,8 @@ test {
     try testing.expectEqual(fn (
         c.id,
         c.SEL,
-    ) callconv(.C) u64, MsgSendFn(u64, c.id, @TypeOf(.{})));
-    try testing.expectEqual(fn (c.id, c.SEL, u16, u32) callconv(.C) u64, MsgSendFn(u64, c.id, @TypeOf(.{
+    ) callconv(.c) u64, MsgSendFn(u64, c.id, @TypeOf(.{})));
+    try testing.expectEqual(fn (c.id, c.SEL, u16, u32) callconv(.c) u64, MsgSendFn(u64, c.id, @TypeOf(.{
         @as(u16, 0),
         @as(u32, 0),
     })));
@@ -229,7 +229,7 @@ test "subClass" {
     const Subclass = objc.allocateClassPair(objc.getClass("NSObject").?, "subclass").?;
     defer objc.disposeClassPair(Subclass);
     const str = struct {
-        fn inner(target: objc.c.id, sel: objc.c.SEL) callconv(.C) objc.c.id {
+        fn inner(target: objc.c.id, sel: objc.c.SEL) callconv(.c) objc.c.id {
             _ = sel;
             const self = objc.Object.fromId(target);
             self.msgSendSuper(objc.getClass("NSObject").?, void, "init", .{});

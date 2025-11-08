@@ -100,7 +100,7 @@ pub const Object = struct {
     }
 
     pub fn dispose(self: Object) void {
-        c.object_dispose(self.value);
+        _ = c.object_dispose(self.value);
     }
 
     pub fn isClass(self: Object) bool {

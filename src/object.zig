@@ -44,7 +44,9 @@ pub const Object = struct {
 
     /// Returns the class name of a given object.
     pub fn getClassName(self: Object) [:0]const u8 {
-        return std.mem.sliceTo(c.object_getClassName(self.value), 0);
+        const ptr = c.object_getClassName(self.value);
+        const len = std.mem.indexOfSentinel(u8, 0, ptr);
+        return ptr[0..len :0];
     }
 
     /// Set a property. This is a helper around getProperty and is

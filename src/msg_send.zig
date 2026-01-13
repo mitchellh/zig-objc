@@ -37,7 +37,31 @@ pub fn MsgSend(comptime T: type) type {
             const Fn = MsgSendFn(RealReturn, @TypeOf(target.value), @TypeOf(args));
             const msg_send_fn = comptime msgSendPtr(RealReturn, false);
             const msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
-            const result = @call(.auto, msg_send_ptr, .{ target.value, sel.value } ++ args);
+            const target_id: c.id = @ptrCast(@alignCast(target.value));
+
+            // Convert Object arguments to c.id by extracting their .value field
+            const converted_args = comptime blk: {
+                const argsInfo = @typeInfo(@TypeOf(args)).@"struct";
+                var result_types: [argsInfo.fields.len]type = undefined;
+                for (argsInfo.fields, 0..) |field, i| {
+                    result_types[i] = if (field.type == objc.Object) c.id else field.type;
+                }
+                break :blk result_types;
+            };
+
+            const final_args: std.meta.Tuple(&converted_args) = blk: {
+                const argsInfo = @typeInfo(@TypeOf(args)).@"struct";
+                var result: std.meta.Tuple(&converted_args) = undefined;
+                inline for (argsInfo.fields, 0..) |field, i| {
+                    result[i] = if (field.type == objc.Object)
+                        @field(args, field.name).value
+                    else
+                        @field(args, field.name);
+                }
+                break :blk result;
+            };
+
+            const result = @call(.auto, msg_send_ptr, .{ target_id, sel.value } ++ final_args);
 
             if (!is_object) return result;
             return .{ .value = result };
@@ -63,11 +87,36 @@ pub fn MsgSend(comptime T: type) type {
             const Fn = MsgSendFn(RealReturn, *c.objc_super, @TypeOf(args));
             const msg_send_fn = comptime msgSendPtr(RealReturn, true);
             const msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
+            const target_id: c.id = @ptrCast(@alignCast(target.value));
+            const superclass_id: c.Class = @ptrCast(@alignCast(superclass.value));
             var super: c.objc_super = .{
-                .receiver = target.value,
-                .class = superclass.value,
+                .receiver = target_id,
+                .super_class = superclass_id,
             };
-            const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ args);
+
+            // Convert Object arguments to c.id by extracting their .value field
+            const converted_args = comptime blk: {
+                const argsInfo = @typeInfo(@TypeOf(args)).@"struct";
+                var result_types: [argsInfo.fields.len]type = undefined;
+                for (argsInfo.fields, 0..) |field, i| {
+                    result_types[i] = if (field.type == objc.Object) c.id else field.type;
+                }
+                break :blk result_types;
+            };
+
+            const final_args: std.meta.Tuple(&converted_args) = blk: {
+                const argsInfo = @typeInfo(@TypeOf(args)).@"struct";
+                var result: std.meta.Tuple(&converted_args) = undefined;
+                inline for (argsInfo.fields, 0..) |field, i| {
+                    result[i] = if (field.type == objc.Object)
+                        @field(args, field.name).value
+                    else
+                        @field(args, field.name);
+                }
+                break :blk result;
+            };
+
+            const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ final_args);
 
             if (!is_object) return result;
             return .{ .value = result };
@@ -183,34 +232,42 @@ fn MsgSendFn(
 
     // Build up our argument types.
     const Fn = std.builtin.Type.Fn;
-    const params: []Fn.Param = params: {
-        var acc: [argsInfo.fields.len + 2]Fn.Param = undefined;
+    const params = params: {
+        var acc: [argsInfo.fields.len + 2]Fn.Param.Attributes = undefined;
 
-        // First argument is always the target and selector.
-        acc[0] = .{ .type = Target, .is_generic = false, .is_noalias = false };
-        acc[1] = .{ .type = c.SEL, .is_generic = false, .is_noalias = false };
+        acc[0] = .{ .@"noalias" = false };
+        acc[1] = .{ .@"noalias" = false };
 
-        // Remaining arguments depend on the args given, in the order given
-        for (argsInfo.fields, 0..) |field, i| {
-            acc[i + 2] = .{
-                .type = field.type,
-                .is_generic = false,
-                .is_noalias = false,
-            };
+        for (argsInfo.fields, 0..) |_, i| {
+            acc[i + 2] = .{ .@"noalias" = false };
         }
 
         break :params &acc;
     };
 
-    return @Type(.{
-        .@"fn" = .{
-            .calling_convention = .c,
-            .is_generic = false,
-            .is_var_args = false,
-            .return_type = Return,
-            .params = params,
-        },
-    });
+    const types = types: {
+        var acc: [argsInfo.fields.len + 2]type = undefined;
+
+        // For msgSendSuper, Target is *c.objc_super (a pointer), use it as-is.
+        // For regular msgSend, Target might be a non-pointer type, so use c.id.
+        acc[0] = if (@typeInfo(Target) == .pointer) Target else c.id;
+        acc[1] = c.SEL;
+
+        for (argsInfo.fields, 0..) |field, i| {
+            // If an argument is objc.Object, use c.id instead since Object
+            // cannot be passed with C calling convention.
+            acc[i + 2] = if (field.type == objc.Object) c.id else field.type;
+        }
+
+        break :types &acc;
+    };
+
+    return @Fn(
+        types,
+        params,
+        Return,
+        .{ .@"callconv" = .c, .varargs = false },
+    );
 }
 
 test {

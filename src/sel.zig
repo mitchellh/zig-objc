@@ -19,7 +19,9 @@ pub const Sel = struct {
 
     /// Returns the name of the method specified by a given selector.
     pub fn getName(self: Sel) [:0]const u8 {
-        return std.mem.sliceTo(c.sel_getName(self.value), 0);
+        const ptr = c.sel_getName(self.value);
+        const len = std.mem.indexOfSentinel(u8, 0, ptr);
+        return ptr[0..len :0];
     }
 };
 

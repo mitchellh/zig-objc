@@ -17,7 +17,9 @@ pub const Protocol = extern struct {
     }
 
     pub fn getName(self: Protocol) [:0]const u8 {
-        return std.mem.sliceTo(c.protocol_getName(self.value), 0);
+        const ptr = c.protocol_getName(self.value);
+        const len = std.mem.indexOfSentinel(u8, 0, ptr);
+        return ptr[0..len :0];
     }
 
     pub fn getProperty(

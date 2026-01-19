@@ -65,7 +65,7 @@ pub fn MsgSend(comptime T: type) type {
             const msg_send_ptr: *const Fn = @ptrCast(msg_send_fn);
             var super: c.objc_super = .{
                 .receiver = target.value,
-                .class = superclass.value,
+                .super_class = superclass.value,
             };
             const result = @call(.auto, msg_send_ptr, .{ &super, sel.value } ++ args);
 

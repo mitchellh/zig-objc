@@ -17,7 +17,7 @@ pub const Protocol = extern struct {
     }
 
     pub fn getName(self: Protocol) [:0]const u8 {
-        return std.mem.sliceTo(c.protocol_getName(self.value), 0);
+        return std.mem.span(c.protocol_getName(self.value));
     }
 
     pub fn getProperty(

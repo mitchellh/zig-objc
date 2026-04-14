@@ -120,9 +120,9 @@ pub fn Block(
             _Block_release(@ptrCast(@alignCast(ctx)));
         }
 
-        fn descCopyHelper(src: *anyopaque, dst: *anyopaque) callconv(.c) void {
-            const real_src: *Context = @ptrCast(@alignCast(src));
+        fn descCopyHelper(dst: *anyopaque, src: *anyopaque) callconv(.c) void {
             const real_dst: *Context = @ptrCast(@alignCast(dst));
+            const real_src: *Context = @ptrCast(@alignCast(src));
             inline for (captures_info.fields) |field| {
                 if (field.type == objc.c.id) {
                     _Block_object_assign(
@@ -297,18 +297,22 @@ test "Block copy objc id" {
 
     const TestBlock = Block(struct {
         id: objc.c.id,
-    }, .{}, i32);
+    }, .{}, objc.c.id);
 
     var block = TestBlock.init(.{
         .id = obj.value,
     }, (struct {
-        fn addFn(block: *const TestBlock.Context) callconv(.c) i32 {
-            _ = block;
-            return 0;
+        fn blockFn(block: *const TestBlock.Context) callconv(.c) objc.c.id {
+            return block.id;
         }
-    }).addFn);
+    }).blockFn);
 
-    // Try copy and release
+    // Copy the block — this exercises descCopyHelper(dst, src).
+    // If dst/src are swapped, the copied block's captured id will be garbage
+    // rather than obj.value, and invoke will return the wrong pointer.
     const copied = try TestBlock.copy(&block);
-    TestBlock.release(copied);
+    defer TestBlock.release(copied);
+
+    const result = TestBlock.invoke(copied, .{});
+    try std.testing.expectEqual(obj.value, result);
 }

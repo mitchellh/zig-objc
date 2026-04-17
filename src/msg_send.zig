@@ -4,70 +4,6 @@ const assert = std.debug.assert;
 const c = @import("c.zig").c;
 const objc = @import("main.zig");
 
-/// Maps objc wrapper types to their underlying C types for use in @Fn signatures,
-/// and validates that all other types are C-ABI compatible.
-fn unwrapType(comptime T: type) type {
-    // Unwrap our objc.Object type
-    if (T == objc.Object) return c.id;
-
-    // Unwrap any other objc wrapper (Class, Sel, etc.) — identified by having
-    // a single 'value' field of pointer size. Return the actual field type
-    // rather than c.id, since Class and Sel have distinct pointer types.
-    if (@typeInfo(T) == .@"struct") {
-        const info = @typeInfo(T).@"struct";
-        for (info.fields) |field| {
-            if (std.mem.eql(u8, field.name, "value") and @sizeOf(field.type) == @sizeOf(c.id)) {
-                return field.type;
-            }
-        }
-    }
-
-    // Validate that the remaining type is safe to pass over the C ABI.
-    // Previously (pre-0.16), passing a non-C-compatible type like []const u8
-    // would silently compile but segfault at runtime via objc_msgSend.
-    // These checks turn that into a compile error.
-    switch (@typeInfo(T)) {
-        .int, .float, .bool, .void => {},
-        .@"enum" => {},
-        .pointer => {},
-        .optional => |opt| {
-            if (@typeInfo(opt.child) != .pointer)
-                @compileError("msgSend: " ++ @typeName(T) ++ " — optional must wrap a pointer");
-        },
-        .@"struct" => |s| {
-            if (s.layout != .@"extern" and s.layout != .@"packed")
-                @compileError("msgSend: " ++ @typeName(T) ++ " — struct must be extern or packed");
-        },
-        .@"union" => |u| {
-            if (u.layout != .@"extern")
-                @compileError("msgSend: " ++ @typeName(T) ++ " — union must be extern");
-        },
-        else => @compileError("msgSend: " ++ @typeName(T) ++ " — not C-ABI compatible"),
-    }
-
-    return T;
-}
-
-/// Helper to unwrap a single argument - extracts .value from Object/Class/Sel if present
-inline fn unwrapArg(arg: anytype) unwrapType(@TypeOf(arg)) {
-    if (unwrapType(@TypeOf(arg)) != @TypeOf(arg)) return arg.value;
-    return arg;
-}
-
-fn UnwrappedArgs(comptime Args: type) type {
-    const fields = @typeInfo(Args).@"struct".fields;
-    var types: [fields.len]type = undefined;
-    for (fields, 0..) |field, i| types[i] = unwrapType(field.type);
-    return @Tuple(&types);
-}
-
-inline fn buildUnwrappedArgs(args: anytype) UnwrappedArgs(@TypeOf(args)) {
-    const fields = @typeInfo(@TypeOf(args)).@"struct".fields;
-    var result: UnwrappedArgs(@TypeOf(args)) = undefined;
-    inline for (fields, 0..) |_, i| result[i] = unwrapArg(args[i]);
-    return result;
-}
-
 /// Returns a struct that implements the msgSend function for type T.
 pub fn MsgSend(comptime T: type) type {
     // 1. T should be a struct
@@ -265,6 +201,69 @@ fn MsgSendFn(
     for (argsInfo.fields, 0..) |field, i| param_types[i + 2] = unwrapType(field.type);
 
     return @Fn(&param_types, &@splat(.{}), Return, .{ .@"callconv" = .c });
+}
+
+fn UnwrappedArgs(comptime Args: type) type {
+    const fields = @typeInfo(Args).@"struct".fields;
+    var types: [fields.len]type = undefined;
+    for (fields, 0..) |field, i| types[i] = unwrapType(field.type);
+    return @Tuple(&types);
+}
+
+/// Maps objc wrapper types to their underlying C types for use in @Fn signatures,
+/// and validates that all other types are C-ABI compatible.
+fn unwrapType(comptime T: type) type {
+    // Unwrap our objc.Object type
+    if (T == objc.Object) return c.id;
+
+    // Unwrap any other objc wrapper (Class, Sel, etc.) — identified by having
+    // a single 'value' field of pointer size. Return the actual field type
+    // rather than c.id, since Class and Sel have distinct pointer types.
+    if (@typeInfo(T) == .@"struct") {
+        const info = @typeInfo(T).@"struct";
+        for (info.fields) |field| {
+            if (std.mem.eql(u8, field.name, "value") and @sizeOf(field.type) == @sizeOf(c.id)) {
+                return field.type;
+            }
+        }
+    }
+
+    // Validate that the remaining type is safe to pass over the C ABI.
+    // Previously (pre-0.16), passing a non-C-compatible type like []const u8
+    // would silently compile but segfault at runtime via objc_msgSend.
+    // These checks turn that into a compile error.
+    switch (@typeInfo(T)) {
+        .int, .float, .bool, .void => {},
+        .@"enum" => {},
+        .pointer => {},
+        .optional => |opt| {
+            if (@typeInfo(opt.child) != .pointer)
+                @compileError("msgSend: " ++ @typeName(T) ++ " — optional must wrap a pointer");
+        },
+        .@"struct" => |s| {
+            if (s.layout != .@"extern" and s.layout != .@"packed")
+                @compileError("msgSend: " ++ @typeName(T) ++ " — struct must be extern or packed");
+        },
+        .@"union" => |u| {
+            if (u.layout != .@"extern")
+                @compileError("msgSend: " ++ @typeName(T) ++ " — union must be extern");
+        },
+        else => @compileError("msgSend: " ++ @typeName(T) ++ " — not C-ABI compatible"),
+    }
+
+    return T;
+}
+
+inline fn buildUnwrappedArgs(args: anytype) UnwrappedArgs(@TypeOf(args)) {
+    const fields = @typeInfo(@TypeOf(args)).@"struct".fields;
+    var result: UnwrappedArgs(@TypeOf(args)) = undefined;
+    inline for (fields, 0..) |_, i| {
+        result[i] = if (unwrapType(@TypeOf(args[i])) != @TypeOf(args[i]))
+            args[i].value
+        else
+            args[i];
+    }
+    return result;
 }
 
 test {

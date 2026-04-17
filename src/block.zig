@@ -120,9 +120,9 @@ pub fn Block(
             _Block_release(@ptrCast(@alignCast(ctx)));
         }
 
-        fn descCopyHelper(src: *anyopaque, dst: *anyopaque) callconv(.c) void {
-            const real_src: *Context = @ptrCast(@alignCast(src));
+        fn descCopyHelper(dst: *anyopaque, src: *anyopaque) callconv(.c) void {
             const real_dst: *Context = @ptrCast(@alignCast(dst));
+            const real_src: *Context = @ptrCast(@alignCast(src));
             inline for (captures_info.fields) |field| {
                 if (field.type == objc.c.id) {
                     _Block_object_assign(
@@ -150,21 +150,11 @@ pub fn Block(
         /// the first arg. The first arg is a pointer so from an ABI perspective
         /// this is always the same and can be safely casted.
         fn FnType(comptime ContextArg: type) type {
-            var params: [Args.len + 1]std.builtin.Type.Fn.Param = undefined;
-            params[0] = .{ .is_generic = false, .is_noalias = false, .type = *const ContextArg };
-            for (Args, 1..) |Arg, i| {
-                params[i] = .{ .is_generic = false, .is_noalias = false, .type = Arg };
-            }
+            var param_types: [Args.len + 1]type = undefined;
+            param_types[0] = *const ContextArg;
+            for (Args, 1..) |Arg, i| param_types[i] = Arg;
 
-            return @Type(.{
-                .@"fn" = .{
-                    .calling_convention = .c,
-                    .is_generic = false,
-                    .is_var_args = false,
-                    .return_type = Return,
-                    .params = &params,
-                },
-            });
+            return @Fn(&param_types, &@splat(.{}), Return, .{ .@"callconv" = .c });
         }
     };
 }
@@ -216,24 +206,19 @@ fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
             comptime_float => @compileError("capture should not be a comptime_float, try using @as"),
             else => {},
         }
-
-        fields[i] = .{
-            .name = capture.name,
-            .type = capture.type,
-            .default_value_ptr = null,
-            .is_comptime = false,
-            .alignment = capture.alignment,
-        };
+        fields[i] = .{ .name = capture.name, .type = capture.type, .default_value_ptr = null, .is_comptime = false, .alignment = capture.alignment };
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .@"extern",
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = false,
-        },
-    });
+    var field_names: [fields.len][]const u8 = undefined;
+    var field_types: [fields.len]type = undefined;
+    var field_attrs: [fields.len]std.builtin.Type.StructField.Attributes = undefined;
+    for (fields, 0..) |field, i| {
+        field_names[i] = field.name;
+        field_types[i] = field.type;
+        field_attrs[i] = .{ .@"align" = field.alignment };
+    }
+
+    return @Struct(.@"extern", null, &field_names, &field_types, &field_attrs);
 }
 
 // Pointer to opaque instead of anyopaque: https://github.com/ziglang/zig/issues/18461
@@ -312,18 +297,22 @@ test "Block copy objc id" {
 
     const TestBlock = Block(struct {
         id: objc.c.id,
-    }, .{}, i32);
+    }, .{}, objc.c.id);
 
     var block = TestBlock.init(.{
         .id = obj.value,
     }, (struct {
-        fn addFn(block: *const TestBlock.Context) callconv(.c) i32 {
-            _ = block;
-            return 0;
+        fn blockFn(block: *const TestBlock.Context) callconv(.c) objc.c.id {
+            return block.id;
         }
-    }).addFn);
+    }).blockFn);
 
-    // Try copy and release
+    // Copy the block — this exercises descCopyHelper(dst, src).
+    // If dst/src are swapped, the copied block's captured id will be garbage
+    // rather than obj.value, and invoke will return the wrong pointer.
     const copied = try TestBlock.copy(&block);
-    TestBlock.release(copied);
+    defer TestBlock.release(copied);
+
+    const result = TestBlock.invoke(copied, .{});
+    try std.testing.expectEqual(obj.value, result);
 }

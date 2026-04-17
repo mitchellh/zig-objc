@@ -44,7 +44,7 @@ pub const Object = struct {
 
     /// Returns the class name of a given object.
     pub fn getClassName(self: Object) [:0]const u8 {
-        return std.mem.sliceTo(c.object_getClassName(self.value), 0);
+        return std.mem.span(c.object_getClassName(self.value));
     }
 
     /// Set a property. This is a helper around getProperty and is
@@ -217,4 +217,23 @@ test "tagged pointer" {
     const obj_ptr = @intFromPtr(obj.value);
     try testing.expect(!std.mem.isAligned(obj_ptr, @alignOf(usize)));
     try testing.expect(std.meta.eql(obj, Object.fromId(obj.value)));
+}
+
+test "msgSend with objc wrapper args" {
+    // Verifies that objc.Object, objc.Class, and objc.Sel are correctly
+    // unwrapped to c.id / c.SEL when passed as msgSend arguments.
+    const testing = std.testing;
+    const NSObject = objc.getClass("NSObject").?;
+
+    const obj = NSObject.msgSend(objc.Object, "alloc", .{});
+    _ = obj.msgSend(objc.Object, "init", .{});
+    defer obj.msgSend(void, "dealloc", .{});
+
+    // Pass objc.Class as an argument: -[NSObject isKindOfClass:]
+    const is_nsobject = obj.msgSend(bool, "isKindOfClass:", .{NSObject});
+    try testing.expect(is_nsobject);
+
+    // Pass objc.Sel as an argument: -[NSObject respondsToSelector:]
+    const responds = obj.msgSend(bool, "respondsToSelector:", .{objc.Sel.registerName("init")});
+    try testing.expect(responds);
 }

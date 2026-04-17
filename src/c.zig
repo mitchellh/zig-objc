@@ -1,7 +1,4 @@
-pub const c = @cImport({
-    @cInclude("objc/runtime.h");
-    @cInclude("objc/message.h");
-});
+pub const c = @import("objc-c");
 
 /// On some targets, Objective-C uses `i8` instead of `bool`.
 /// This helper casts a target value type to `bool`.

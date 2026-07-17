@@ -86,8 +86,8 @@ pub fn Block(
             };
             ctx.invoke = @ptrCast(func);
             ctx.descriptor = &descriptor;
-            inline for (captures_info.fields) |field| {
-                @field(ctx, field.name) = @field(captures, field.name);
+            inline for (captures_info.field_names) |field_name| {
+                @field(ctx, field_name) = @field(captures, field_name);
             }
 
             return ctx;
@@ -123,11 +123,11 @@ pub fn Block(
         fn descCopyHelper(dst: *anyopaque, src: *anyopaque) callconv(.c) void {
             const real_dst: *Context = @ptrCast(@alignCast(dst));
             const real_src: *Context = @ptrCast(@alignCast(src));
-            inline for (captures_info.fields) |field| {
-                if (field.type == objc.c.id) {
+            inline for (captures_info.field_names, captures_info.field_types) |field_name, field_type| {
+                if (field_type == objc.c.id) {
                     _Block_object_assign(
-                        @ptrCast(&@field(real_dst, field.name)),
-                        @field(real_src, field.name),
+                        @ptrCast(&@field(real_dst, field_name)),
+                        @field(real_src, field_name),
                         .object,
                     );
                 }
@@ -136,10 +136,10 @@ pub fn Block(
 
         fn descDisposeHelper(src: *anyopaque) callconv(.c) void {
             const real_src: *Context = @ptrCast(@alignCast(src));
-            inline for (captures_info.fields) |field| {
-                if (field.type == objc.c.id) {
+            inline for (captures_info.field_names, captures_info.field_types) |field_name, field_type| {
+                if (field_type == objc.c.id) {
                     _Block_object_dispose(
-                        @field(real_src, field.name),
+                        @field(real_src, field_name),
                         .object,
                     );
                 }
@@ -163,59 +163,66 @@ pub fn Block(
 /// argument to any block invocation. See Block.
 fn BlockContext(comptime Captures: type, comptime InvokeFn: type) type {
     const captures_info = @typeInfo(Captures).@"struct";
-    var fields: [captures_info.fields.len + 5]std.builtin.Type.StructField = undefined;
-    fields[0] = .{
-        .name = "isa",
-        .type = ?*anyopaque,
+    const field_count = captures_info.field_types.len + 5;
+
+    var field_names: [field_count][]const u8 = undefined;
+    var field_types: [field_count]type = undefined;
+    var field_attrs: [field_count]std.lang.Type.Struct.FieldAttributes = undefined;
+
+    field_names[0] = "isa";
+    field_types[0] = ?*anyopaque;
+    field_attrs[0] = .{
         .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = @alignOf(*anyopaque),
+        .@"comptime" = false,
+        .@"align" = @alignOf(*anyopaque),
     };
-    fields[1] = .{
-        .name = "flags",
-        .type = BlockFlags,
+    field_names[1] = "flags";
+    field_types[1] = BlockFlags;
+    field_attrs[1] = .{
         .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = @alignOf(c_int),
+        .@"comptime" = false,
+        .@"align" = @alignOf(c_int),
     };
-    fields[2] = .{
-        .name = "reserved",
-        .type = c_int,
+    field_names[2] = "reserved";
+    field_types[2] = c_int;
+    field_attrs[2] = .{
         .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = @alignOf(c_int),
+        .@"comptime" = false,
+        .@"align" = @alignOf(c_int),
     };
-    fields[3] = .{
-        .name = "invoke",
-        .type = *const InvokeFn,
+    field_names[3] = "invoke";
+    field_types[3] = *const InvokeFn;
+    field_attrs[3] = .{
         .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = @typeInfo(*const InvokeFn).pointer.alignment,
+        .@"comptime" = false,
+        .@"align" = @typeInfo(*const InvokeFn).pointer.attrs.@"align",
     };
-    fields[4] = .{
-        .name = "descriptor",
-        .type = *const Descriptor,
+    field_names[4] = "descriptor";
+    field_types[4] = *const Descriptor;
+    field_attrs[4] = .{
         .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = @alignOf(*Descriptor),
+        .@"comptime" = false,
+        .@"align" = @alignOf(*Descriptor),
     };
 
-    for (captures_info.fields, 5..) |capture, i| {
-        switch (capture.type) {
+    for (
+        captures_info.field_names,
+        captures_info.field_types,
+        captures_info.field_attrs,
+        5..,
+    ) |field_name, field_type, field_attr, i| {
+        switch (field_type) {
             comptime_int => @compileError("capture should not be a comptime_int, try using @as"),
             comptime_float => @compileError("capture should not be a comptime_float, try using @as"),
             else => {},
         }
-        fields[i] = .{ .name = capture.name, .type = capture.type, .default_value_ptr = null, .is_comptime = false, .alignment = capture.alignment };
-    }
-
-    var field_names: [fields.len][]const u8 = undefined;
-    var field_types: [fields.len]type = undefined;
-    var field_attrs: [fields.len]std.builtin.Type.StructField.Attributes = undefined;
-    for (fields, 0..) |field, i| {
-        field_names[i] = field.name;
-        field_types[i] = field.type;
-        field_attrs[i] = .{ .@"align" = field.alignment };
+        field_names[i] = field_name;
+        field_types[i] = field_type;
+        field_attrs[i] = .{
+            .default_value_ptr = null,
+            .@"comptime" = false,
+            .@"align" = field_attr.@"align",
+        };
     }
 
     return @Struct(.@"extern", null, &field_names, &field_types, &field_attrs);

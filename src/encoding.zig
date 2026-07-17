@@ -145,8 +145,8 @@ pub const Encoding = union(enum) {
                 // of the struct (determined by levels of pointer indirection)
                 if (s.show_type_spec) {
                     try writer.writeAll("=");
-                    inline for (struct_info.@"struct".fields) |field| {
-                        const field_encode = init(field.type);
+                    inline for (struct_info.@"struct".field_types) |field_type| {
+                        const field_encode = init(field_type);
                         try field_encode.format(writer);
                     }
                 }
@@ -167,8 +167,8 @@ pub const Encoding = union(enum) {
                 // of the Union (determined by levels of pointer indirection)
                 if (u.show_type_spec) {
                     try writer.writeAll("=");
-                    inline for (union_info.@"union".fields) |field| {
-                        const field_encode = init(field.type);
+                    inline for (union_info.@"union".field_types) |field_type| {
+                        const field_encode = init(field_type);
                         try field_encode.format(writer);
                     }
                 }
@@ -210,13 +210,13 @@ pub const Encoding = union(enum) {
                 }
             },
             .function => |fn_info| {
-                assert(std.meta.eql(fn_info.calling_convention, std.builtin.CallingConvention.c));
+                assert(std.meta.eql(fn_info.attrs.@"callconv", std.builtin.CallingConvention.c));
 
                 // Return type is first in a method encoding
                 const ret_type_enc = init(fn_info.return_type.?);
                 try ret_type_enc.format(writer);
-                inline for (fn_info.params) |param| {
-                    const param_enc = init(param.type.?);
+                inline for (fn_info.param_types) |param_type| {
+                    const param_enc = init(param_type.?);
                     try param_enc.format(writer);
                 }
             },

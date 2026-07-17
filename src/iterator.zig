@@ -6,7 +6,7 @@ const NSFastEnumerationState = extern struct {
     state: c_ulong = 0,
     itemsPtr: ?[*]objc.c.id = null,
     mutationsPtr: ?*c_ulong = null,
-    extra: [5]c_ulong = [_]c_ulong{0} ** 5,
+    extra: [5]c_ulong = @splat(0),
 };
 
 /// An iterator that uses the fast enumeration protocol[1] to iterate over
@@ -20,7 +20,7 @@ pub const Iterator = struct {
     state: NSFastEnumerationState = .{},
     initial_mutations_value: ?c_ulong = null,
     // Clang compiles `for…in` loops with a size 16 buffer.
-    buffer: [16]objc.c.id = [_]objc.c.id{null} ** 16,
+    buffer: [16]objc.c.id = @splat(null),
     slice: []const objc.c.id = &.{},
 
     pub fn init(object: objc.Object) Iterator {
